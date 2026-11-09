@@ -11,6 +11,10 @@ export default {
       damping: 0.04,
       g: 9.81,
 
+      showForces: true,
+      showVelocity: true,
+      showVectorValues: true,
+
       theta: 0,
       omega: 0,
       xSpring: 0,
@@ -24,12 +28,26 @@ export default {
     };
   },
   computed: {
-    period() {
+    period0() {
       if (this.mode === 'math') {
         return 2 * Math.PI * Math.sqrt(this.length / this.g);
       } else {
         return 2 * Math.PI * Math.sqrt(this.mass / this.stiffness);
       }
+    },
+    period() {
+      const t0 = this.period0;
+      if (this.mode === 'math') {
+        const theta0Rad = (this.initialAngle * Math.PI) / 180;
+        return t0 * (1 + (theta0Rad * theta0Rad) / 16);
+      }
+      return t0;
+    },
+    frequency() {
+      return 1 / (this.period || 1);
+    },
+    angularFreq() {
+      return (2 * Math.PI) / (this.period || 1);
     },
     energies() {
       if (this.mode === 'math') {
@@ -37,11 +55,27 @@ export default {
         const ek = 0.5 * this.mass * v * v;
         const h = this.length * (1 - Math.cos(this.theta));
         const ep = this.mass * this.g * h;
-        return { ek, ep, total: ek + ep, v };
+        const mg = this.mass * this.g;
+        const fTangential = -mg * Math.sin(this.theta);
+        const fCentripetal = (this.mass * v * v) / this.length;
+        const tension = mg * Math.cos(this.theta) + fCentripetal;
+        const accelTan = -this.g * Math.sin(this.theta);
+        const accelNorm = (v * v) / this.length;
+        const maxV = Math.sqrt((2 * (ek + ep)) / this.mass);
+        return {
+          ek, ep, total: ek + ep, v, mg, tension, fTangential, fCentripetal, accelTan, accelNorm, maxV
+        };
       } else {
-        const ek = 0.5 * this.mass * this.vSpring * this.vSpring;
+        const v = this.vSpring;
+        const ek = 0.5 * this.mass * v * v;
         const ep = 0.5 * this.stiffness * this.xSpring * this.xSpring;
-        return { ek, ep, total: ek + ep, v: this.vSpring };
+        const mg = this.mass * this.g;
+        const fSpring = -this.stiffness * this.xSpring;
+        const accel = fSpring / this.mass;
+        const maxV = Math.sqrt((2 * (ek + ep)) / this.mass);
+        return {
+          ek, ep, total: ek + ep, v, mg, fSpring, accel, maxV
+        };
       }
     }
   },
@@ -66,6 +100,44 @@ export default {
       this.vSpring = 0;
       this.simTime = 0;
       this.phaseHistory = [];
+    },
+    drawVector(ctx, x1, y1, x2, y2, color, label, labelOffset = { x: 0, y: 0 }) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 4) return;
+      const angle = Math.atan2(dy, dx);
+      const headLen = Math.min(10, Math.max(6, len * 0.25));
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+
+      if (label) {
+        ctx.font = "600 11px 'JetBrains Mono', monospace";
+        const tx = x2 + labelOffset.x;
+        const ty = y2 + labelOffset.y;
+        const metrics = ctx.measureText(label);
+        ctx.fillStyle = "rgba(9, 13, 22, 0.88)";
+        ctx.beginPath();
+        ctx.roundRect(tx - 4, ty - 10, metrics.width + 8, 15, 3);
+        ctx.fill();
+        ctx.fillStyle = color;
+        ctx.fillText(label, tx, ty + 1);
+      }
+      ctx.restore();
     },
     resizeCanvases() {
       const dpr = window.devicePixelRatio || 1;
@@ -152,6 +224,39 @@ export default {
         ctx.textAlign = "center";
         ctx.fillText(`${this.mass} кг`, bobX, bobY + 4);
         ctx.restore();
+
+        // Векторы сил и скорости математического маятника
+        if (this.showForces) {
+          const fScale = 4.2;
+          const mg = this.energies.mg;
+          const mgLen = Math.min(80, Math.max(16, mg * fScale));
+          const mgLabel = this.showVectorValues ? `mg=${mg.toFixed(1)}Н` : "mg";
+          this.drawVector(ctx, bobX, bobY, bobX, bobY + mgLen, "#38bdf8", mgLabel, { x: 8, y: 14 });
+
+          const tension = this.energies.tension;
+          const tLen = Math.min(95, Math.max(16, tension * fScale));
+          const hyp = Math.hypot(cx - bobX, cy - bobY) || 1;
+          const dirPivotX = (cx - bobX) / hyp;
+          const dirPivotY = (cy - bobY) / hyp;
+          const tLabel = this.showVectorValues ? `T=${tension.toFixed(1)}Н` : "T";
+          this.drawVector(ctx, bobX, bobY, bobX + dirPivotX * tLen, bobY + dirPivotY * tLen, "#34d399", tLabel, { x: -35, y: -8 });
+
+          const ftan = this.energies.fTangential;
+          if (Math.abs(ftan) > 0.08) {
+            const ftanLen = Math.min(70, Math.max(14, Math.abs(ftan) * fScale));
+            const tanDirX = Math.cos(this.theta) * Math.sign(ftan);
+            const tanDirY = -Math.sin(this.theta) * Math.sign(ftan);
+            const ftanLabel = this.showVectorValues ? `F_τ=${Math.abs(ftan).toFixed(1)}Н` : "F_τ";
+            this.drawVector(ctx, bobX, bobY, bobX + tanDirX * ftanLen, bobY + tanDirY * ftanLen, "#fbbf24", ftanLabel, { x: 8, y: -8 });
+          }
+        }
+
+        if (this.showVelocity && Math.abs(this.energies.v) > 0.05) {
+          const vLen = Math.min(80, Math.max(18, Math.abs(this.energies.v) * 26));
+          const vDirX = Math.cos(this.theta) * Math.sign(this.omega);
+          const vDirY = -Math.sin(this.theta) * Math.sign(this.omega);
+          this.drawVector(ctx, bobX, bobY, bobX + vDirX * vLen, bobY + vDirY * vLen, "#f43f5e", `v=${Math.abs(this.energies.v).toFixed(2)}м/с`, { x: 8, y: 14 });
+        }
       } else {
         const restLenPx = 100;
         const pxScale = 180;
@@ -189,6 +294,30 @@ export default {
         ctx.textAlign = "center";
         ctx.fillText(`${this.mass} кг`, cx, bobY + bh / 2 + 4);
         ctx.restore();
+
+        // Векторы сил и движения пружинного осциллятора
+        const cyBob = bobY + bh / 2;
+        if (this.showForces) {
+          const mg = this.energies.mg;
+          const mgLen = Math.min(75, Math.max(16, mg * 4.2));
+          const mgLabel = this.showVectorValues ? `mg=${mg.toFixed(1)}Н` : "mg";
+          this.drawVector(ctx, cx, cyBob, cx, cyBob + mgLen, "#38bdf8", mgLabel, { x: 8, y: 14 });
+
+          const fSpring = this.energies.fSpring;
+          if (Math.abs(fSpring) > 0.08) {
+            const fsLen = Math.min(85, Math.max(16, Math.abs(fSpring) * 3.5));
+            // xSpring > 0 (растянута вниз) => сила направлена вверх (-1)
+            const fsDirY = fSpring > 0 ? 1 : -1;
+            const fsLabel = this.showVectorValues ? `F_упр=${Math.abs(fSpring).toFixed(1)}Н` : "F_упр";
+            this.drawVector(ctx, cx, cyBob, cx, cyBob + fsDirY * fsLen, "#34d399", fsLabel, { x: -65, y: -6 });
+          }
+        }
+
+        if (this.showVelocity && Math.abs(this.vSpring) > 0.05) {
+          const vLen = Math.min(75, Math.max(18, Math.abs(this.vSpring) * 28));
+          const vDirY = Math.sign(this.vSpring);
+          this.drawVector(ctx, cx, cyBob, cx, cyBob + vDirY * vLen, "#f43f5e", `v=${Math.abs(this.vSpring).toFixed(2)}м/с`, { x: 8, y: 14 });
+        }
       }
 
       // Гистограмма энергии
@@ -390,6 +519,43 @@ export default {
             <div class="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-lg px-2.5 py-1 text-[11px] font-mono text-sky-400 pointer-events-none">
               💡 Перетаскивайте груз маятника курсором
             </div>
+
+            <!-- Тумблеры векторов -->
+            <div class="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-auto">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button
+                  @click="showForces = !showForces"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showForces ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="showForces ? 'bg-sky-400' : 'bg-slate-600'"></span>
+                  <span>Векторы сил</span>
+                </button>
+
+                <button
+                  @click="showVelocity = !showVelocity"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showVelocity ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="showVelocity ? 'bg-rose-400' : 'bg-slate-600'"></span>
+                  <span>Вектор скорости v</span>
+                </button>
+
+                <button
+                  @click="showVectorValues = !showVectorValues"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showVectorValues ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span>Значения (Н, м/с)</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -411,88 +577,217 @@ export default {
       <div class="lg:col-span-4 flex flex-col gap-6">
         
         <div class="glass-panel rounded-2xl p-5 shadow-xl space-y-5">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5">
-            Параметры системы
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 flex items-center justify-between">
+            <span>Параметры системы</span>
+            <span class="text-xs font-mono text-sky-400">Точный ввод & ползунки</span>
           </h2>
 
+          <!-- Длина нити или Жесткость пружины -->
           <div v-if="mode === 'math'" class="space-y-2">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Длина нити <span class="font-mono text-sky-400">L</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ length.toFixed(2) }} м</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.2"
+                  max="3.0"
+                  step="0.05"
+                  v-model.number="length"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">м</span>
+              </div>
             </div>
-            <input type="range" min="0.5" max="2.5" step="0.1" v-model.number="length" @input="reset" />
+            <input type="range" min="0.2" max="3.0" step="0.05" v-model.number="length" @input="reset" />
+            <div class="flex justify-between text-[11px] font-mono text-slate-500">
+              <span>0.2 м</span><span>1.5 м</span><span>3.0 м</span>
+            </div>
           </div>
 
           <div v-else class="space-y-2">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Жесткость пружины <span class="font-mono text-sky-400">k</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ stiffness.toFixed(0) }} Н/м</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="5"
+                  max="200"
+                  step="1"
+                  v-model.number="stiffness"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">Н/м</span>
+              </div>
             </div>
-            <input type="range" min="10" max="100" step="5" v-model.number="stiffness" @input="reset" />
+            <input type="range" min="5" max="200" step="5" v-model.number="stiffness" @input="reset" />
+            <div class="flex justify-between text-[11px] font-mono text-slate-500">
+              <span>5 Н/м</span><span>100 Н/м</span><span>200 Н/м</span>
+            </div>
           </div>
 
+          <!-- Масса груза -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Масса груза <span class="font-mono text-sky-400">m</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ mass.toFixed(1) }} кг</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.1"
+                  max="10.0"
+                  step="0.1"
+                  v-model.number="mass"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">кг</span>
+              </div>
             </div>
-            <input type="range" min="0.2" max="5.0" step="0.2" v-model.number="mass" @input="reset" />
+            <input type="range" min="0.1" max="10.0" step="0.1" v-model.number="mass" @input="reset" />
+            <div class="flex justify-between text-[11px] font-mono text-slate-500">
+              <span>0.1 кг</span><span>5.0 кг</span><span>10.0 кг</span>
+            </div>
           </div>
 
+          <!-- Начальная амплитуда -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">
                 {{ mode === 'math' ? 'Начальный угол α₀' : 'Начальное смещение x₀' }}
               </label>
-              <span class="font-mono text-base font-bold text-sky-400">
-                {{ mode === 'math' ? initialAngle.toFixed(0) + '°' : initialDisplacement.toFixed(2) + ' м' }}
-              </span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  v-if="mode === 'math'"
+                  type="number"
+                  min="1"
+                  max="75"
+                  step="0.5"
+                  v-model.number="initialAngle"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <input
+                  v-else
+                  type="number"
+                  min="0.02"
+                  max="0.60"
+                  step="0.01"
+                  v-model.number="initialDisplacement"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">{{ mode === 'math' ? '°' : 'м' }}</span>
+              </div>
             </div>
             <input
               v-if="mode === 'math'"
-              type="range" min="5" max="60" step="1"
+              type="range" min="1" max="75" step="0.5"
               v-model.number="initialAngle" @input="reset"
             />
             <input
               v-else
-              type="range" min="0.05" max="0.5" step="0.05"
+              type="range" min="0.02" max="0.60" step="0.01"
               v-model.number="initialDisplacement" @input="reset"
             />
+          </div>
+
+          <!-- Ускорение падения g -->
+          <div class="space-y-2 pt-2 border-t border-slate-800/60">
+            <div class="flex justify-between items-center">
+              <label class="text-sm font-medium text-slate-200">Гравитация <span class="font-mono text-sky-400">g</span></label>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="1.0"
+                  max="30.0"
+                  step="0.01"
+                  v-model.number="g"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">м/с²</span>
+              </div>
+            </div>
+            <input type="range" min="1.0" max="25.0" step="0.01" v-model.number="g" @input="reset" />
           </div>
         </div>
 
         <div class="glass-panel rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between space-y-4">
           <div>
-            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5">
-              Энергетический баланс
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5 flex items-center justify-between">
+              <span>Динамический расчёт состояния</span>
+              <span class="text-[11px] font-mono font-normal text-sky-400">Реальное время</span>
             </h2>
 
-            <div class="grid grid-cols-2 gap-3 font-mono">
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Период колебаний T</span>
-                <span class="text-lg font-bold text-sky-400">{{ period.toFixed(2) }} с</span>
-                <div class="text-[10px] text-slate-500 mt-0.5">2π√(l/g) или 2π√(m/k)</div>
+            <div class="grid grid-cols-2 gap-2.5 font-mono text-xs">
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Период T</span>
+                <span class="text-base font-bold text-sky-400">{{ period.toFixed(3) }} с</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">Т₀ = {{ period0.toFixed(3) }} с</div>
               </div>
 
-              <div class="bg-rose-950/30 border border-rose-500/30 rounded-xl p-3">
-                <span class="text-[11px] text-rose-300 block">Кинетическая Ek</span>
-                <span class="text-lg font-bold text-rose-400">{{ energies.ek.toFixed(3) }} Дж</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Частота ν / ω₀</span>
+                <span class="text-base font-bold text-white">{{ frequency.toFixed(2) }} Гц</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">{{ angularFreq.toFixed(2) }} рад/с</div>
+              </div>
+
+              <div class="bg-rose-950/30 border border-rose-500/30 rounded-xl p-2.5">
+                <span class="text-[10px] text-rose-300 block">Кинетическая Ek</span>
+                <span class="text-base font-bold text-rose-400">{{ energies.ek.toFixed(3) }} Дж</span>
                 <div class="text-[10px] text-rose-300/70 mt-0.5">m·v²/2</div>
               </div>
 
-              <div class="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-3">
-                <span class="text-[11px] text-emerald-300 block">Потенциальная Ep</span>
-                <span class="text-lg font-bold text-emerald-400">{{ energies.ep.toFixed(3) }} Дж</span>
-                <div class="text-[10px] text-emerald-300/70 mt-0.5">mgh или kx²/2</div>
+              <div class="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-2.5">
+                <span class="text-[10px] text-emerald-300 block">Потенциальная Ep</span>
+                <span class="text-base font-bold text-emerald-400">{{ energies.ep.toFixed(3) }} Дж</span>
+                <div class="text-[10px] text-emerald-300/70 mt-0.5">{{ mode === 'math' ? 'mgh' : 'kx²/2' }}</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Полная энергия E</span>
-                <span class="text-lg font-bold text-white">{{ energies.total.toFixed(3) }} Дж</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Полная энергия E</span>
+                <span class="text-base font-bold text-white">{{ energies.total.toFixed(3) }} Дж</span>
                 <div class="text-[10px] text-slate-500 mt-0.5">Ek + Ep = const</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Текущая скорость v</span>
+                <span class="text-base font-bold text-sky-300">{{ Math.abs(energies.v).toFixed(2) }} м/с</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">v_макс = {{ energies.maxV.toFixed(2) }} м/с</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">
+                  {{ mode === 'math' ? 'Сила натяжения T' : 'Сила упругости F_упр' }}
+                </span>
+                <span class="text-base font-bold text-emerald-400">
+                  {{ mode === 'math' ? energies.tension.toFixed(2) : Math.abs(energies.fSpring).toFixed(2) }} Н
+                </span>
+                <div class="text-[10px] text-slate-500 mt-0.5">
+                  {{ mode === 'math' ? 'mg·cosθ + mv²/L' : '-k·x' }}
+                </div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">
+                  {{ mode === 'math' ? 'Текущий угол θ' : 'Смещение x' }}
+                </span>
+                <span class="text-base font-bold text-amber-300">
+                  {{ mode === 'math' ? ((theta * 180) / Math.PI).toFixed(1) + '°' : (xSpring * 100).toFixed(1) + ' см' }}
+                </span>
+                <div class="text-[10px] text-slate-500 mt-0.5">
+                  {{ mode === 'math' ? theta.toFixed(3) + ' рад' : xSpring.toFixed(3) + ' м' }}
+                </div>
               </div>
             </div>
           </div>
+
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1">
+            <span class="font-semibold text-slate-200 block">Закон сохранения энергии:</span>
+            В точках максимального отклонения скорость равна нулю (<span class="font-mono text-emerald-400">Ek = 0</span>, <span class="font-mono text-slate-200">Ep = max</span>), а в точке равновесия потенциальная энергия полностью переходит в кинетическую.
+          </div>
+        </div>
 
           <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1">
             <span class="font-semibold text-slate-200 block">Закон сохранения энергии:</span>

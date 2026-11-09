@@ -283,67 +283,132 @@ export default {
       <div class="lg:col-span-4 flex flex-col gap-6">
         
         <div class="glass-panel rounded-2xl p-5 shadow-xl space-y-5">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5">
-            Параметры цепи
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 flex items-center justify-between">
+            <span>Параметры цепи</span>
+            <span class="text-xs font-mono text-sky-400">Точный ввод & ползунки</span>
           </h2>
 
           <div class="space-y-2">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Напряжение источника <span class="font-mono text-sky-400">U</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ voltage.toFixed(1) }} В</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.5"
+                  max="100"
+                  step="0.5"
+                  v-model.number="voltage"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">В</span>
+              </div>
             </div>
-            <input type="range" min="1" max="24" step="1" v-model.number="voltage" />
+            <input type="range" min="1" max="24" step="0.5" v-model.number="voltage" />
+            <div class="flex justify-between text-[11px] font-mono text-slate-500">
+              <span>1 В</span><span>12 В</span><span>24 В</span>
+            </div>
           </div>
 
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Резистор <span class="font-mono text-sky-400">R₁</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ r1.toFixed(1) }} Ом</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.5"
+                  max="100"
+                  step="0.5"
+                  v-model.number="r1"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">Ом</span>
+              </div>
             </div>
-            <input type="range" min="1" max="20" step="1" v-model.number="r1" />
+            <input type="range" min="1" max="20" step="0.5" v-model.number="r1" />
           </div>
 
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Резистор <span class="font-mono text-amber-400">R₂</span></label>
-              <span class="font-mono text-base font-bold text-amber-400">{{ r2.toFixed(1) }} Ом</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.5"
+                  max="100"
+                  step="0.5"
+                  v-model.number="r2"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">Ом</span>
+              </div>
             </div>
-            <input type="range" min="1" max="20" step="1" v-model.number="r2" />
+            <input type="range" min="1" max="20" step="0.5" v-model.number="r2" />
           </div>
         </div>
 
         <div class="glass-panel rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between space-y-4">
           <div>
-            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5">
-              Электрические величины
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5 flex items-center justify-between">
+              <span>Электрические величины</span>
+              <span class="text-[11px] font-mono font-normal text-sky-400">Закон Джоуля-Ленца</span>
             </h2>
 
-            <div class="grid grid-cols-2 gap-3 font-mono">
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Полный ток I</span>
-                <span class="text-lg font-bold text-sky-400">{{ totalCurrent.toFixed(2) }} А</span>
+            <div class="grid grid-cols-2 gap-2.5 font-mono text-xs">
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Полный ток I</span>
+                <span class="text-base font-bold text-sky-400">{{ totalCurrent.toFixed(2) }} А</span>
                 <div class="text-[10px] text-slate-500 mt-0.5">U / R_общ</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Эквив. сопротивление</span>
-                <span class="text-lg font-bold text-emerald-400">{{ rTotal.toFixed(2) }} Ом</span>
-                <div class="text-[10px] text-slate-500 mt-0.5">R_общ</div>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Эквив. сопр. R_экв</span>
+                <span class="text-base font-bold text-emerald-400">{{ rTotal.toFixed(2) }} Ом</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">{{ connType === 'series' ? 'R₁ + R₂' : '(R₁·R₂)/(R₁+R₂)' }}</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Ток через R₁</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Ветка R₁ (I₁ / U₁)</span>
                 <span class="text-base font-bold text-amber-400">{{ branch1.i.toFixed(2) }} А</span>
-                <div class="text-[10px] text-slate-500 mt-0.5">U₁ = {{ branch1.u.toFixed(1) }} В</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">{{ branch1.u.toFixed(1) }} В · {{ branch1.p.toFixed(1) }} Вт</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Полная мощность P</span>
-                <span class="text-base font-bold text-rose-400">{{ totalPower.toFixed(1) }} Вт</span>
-                <div class="text-[10px] text-slate-500 mt-0.5">U · I</div>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Ветка R₂ (I₂ / U₂)</span>
+                <span class="text-base font-bold text-purple-400">{{ branch2.i.toFixed(2) }} А</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">{{ branch2.u.toFixed(1) }} В · {{ branch2.p.toFixed(1) }} Вт</div>
+              </div>
+
+              <div class="bg-rose-950/30 border border-rose-500/30 rounded-xl p-2.5">
+                <span class="text-[10px] text-rose-300 block">Полная мощность P</span>
+                <span class="text-base font-bold text-rose-400">{{ totalPower.toFixed(2) }} Вт</span>
+                <div class="text-[10px] text-rose-300/70 mt-0.5">U · I = I²·R</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Тепло за 1 мин Q</span>
+                <span class="text-base font-bold text-amber-300">{{ (totalPower * 60).toFixed(0) }} Дж</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">{{ ((totalPower * 60) / 4184).toFixed(2) }} ккал</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Заряд за 1 мин q</span>
+                <span class="text-base font-bold text-sky-300">{{ (totalCurrent * 60).toFixed(1) }} Кл</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">q = I · t</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Коэфф. мощности</span>
+                <span class="text-base font-bold text-white">1.00</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">Активная нагрузка</div>
               </div>
             </div>
           </div>
+
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1">
+            <span class="font-semibold text-slate-200 block">Закон Ома для участка цепи:</span>
+            Сила тока прямо пропорциональна приложенному напряжению и обратно пропорциональна сопротивлению проводника: <span class="font-mono text-sky-400">I = U / R</span>.
+          </div>
+        </div>
 
           <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1">
             <span class="font-semibold text-slate-200 block">Закон Ома для участка цепи:</span>

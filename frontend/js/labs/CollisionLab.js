@@ -2,11 +2,15 @@ export default {
   name: 'CollisionLab',
   data() {
     return {
-      collisionType: 'elastic', // 'elastic' (упругий) или 'inelastic' (абсолютно неупругий)
+      collisionType: 'elastic',
       m1: 2.0,
       v1: 4.0,
       m2: 2.0,
       v2: 0.0,
+
+      showVectors: true,
+      showMomentum: true,
+      showForces: true,
 
       // Live simulation
       x1: 150,
@@ -28,25 +32,32 @@ export default {
     ekInitial() {
       return 0.5 * this.m1 * this.v1 * this.v1 + 0.5 * this.m2 * this.v2 * this.v2;
     },
+    centerOfMassVelocity() {
+      return (this.m1 * this.v1 + this.m2 * this.v2) / (this.m1 + this.m2);
+    },
     theoreticalOutcomes() {
       if (this.collisionType === 'inelastic') {
         const u = (this.m1 * this.v1 + this.m2 * this.v2) / (this.m1 + this.m2);
         const ekFinal = 0.5 * (this.m1 + this.m2) * u * u;
+        const impulse = Math.abs(this.m1 * (u - this.v1));
         return {
           v1Final: u,
           v2Final: u,
           ekFinal,
-          energyLoss: this.ekInitial - ekFinal
+          energyLoss: this.ekInitial - ekFinal,
+          impulse
         };
       } else {
         const v1Final = ((this.m1 - this.m2) * this.v1 + 2 * this.m2 * this.v2) / (this.m1 + this.m2);
         const v2Final = ((this.m2 - this.m1) * this.v2 + 2 * this.m1 * this.v1) / (this.m1 + this.m2);
         const ekFinal = 0.5 * this.m1 * v1Final * v1Final + 0.5 * this.m2 * v2Final * v2Final;
+        const impulse = Math.abs(this.m1 * (v1Final - this.v1));
         return {
           v1Final,
           v2Final,
           ekFinal,
-          energyLoss: 0.0
+          energyLoss: 0.0,
+          impulse
         };
       }
     }
@@ -63,6 +74,44 @@ export default {
     if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
   },
   methods: {
+    drawVector(ctx, x1, y1, x2, y2, color, label, labelOffset = { x: 0, y: 0 }) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 4) return;
+      const angle = Math.atan2(dy, dx);
+      const headLen = Math.min(10, Math.max(6, len * 0.25));
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+
+      if (label) {
+        ctx.font = "600 11px 'JetBrains Mono', monospace";
+        const tx = x2 + labelOffset.x;
+        const ty = y2 + labelOffset.y;
+        const metrics = ctx.measureText(label);
+        ctx.fillStyle = "rgba(9, 13, 22, 0.88)";
+        ctx.beginPath();
+        ctx.roundRect(tx - 4, ty - 10, metrics.width + 8, 15, 3);
+        ctx.fill();
+        ctx.fillStyle = color;
+        ctx.fillText(label, tx, ty + 1);
+      }
+      ctx.restore();
+    },
     start() {
       this.reset();
       this.isRunning = true;
@@ -127,11 +176,20 @@ export default {
       }
 
       // Тележка 1 (Синяя)
-      this.drawCart(ctx, this.x1, trackY, this.m1, this.curV1, "#38bdf8", "#0284c7", "m₁");
+      this.drawCart(ctx, this.x1, trackY, this.m1, this.curV1, "#38bdf8", "#0284c7", "m₁", "1");
       // Тележка 2 (Оранжевая)
-      this.drawCart(ctx, this.x2, trackY, this.m2, this.curV2, "#fbbf24", "#d97706", "m₂");
+      this.drawCart(ctx, this.x2, trackY, this.m2, this.curV2, "#fbbf24", "#d97706", "m₂", "2");
+
+      // Векторы силы взаимодействия при контакте
+      if (this.showForces && this.hasCollided) {
+        const contactX = (this.x1 + this.cartWidth / 2 + this.x2 - this.cartWidth / 2) / 2;
+        const contactY = trackY - this.cartHeight / 2;
+        const fLen = 45;
+        this.drawVector(ctx, contactX, contactY - 14, contactX - fLen, contactY - 14, "#f43f5e", "F₂₁", { x: -35, y: -8 });
+        this.drawVector(ctx, contactX, contactY + 14, contactX + fLen, contactY + 14, "#f43f5e", "F₁₂", { x: 8, y: 12 });
+      }
     },
-    drawCart(ctx, x, trackY, mass, velocity, strokeColor, fillColor, label) {
+    drawCart(ctx, x, trackY, mass, velocity, strokeColor, fillColor, label, idx) {
       const y = trackY - this.cartHeight;
       const w = this.cartWidth;
       const h = this.cartHeight;
@@ -161,18 +219,20 @@ export default {
       ctx.textAlign = "center";
       ctx.fillText(`${label}=${mass}кг`, x, y + h / 2 - 2);
       ctx.fillText(`v=${velocity.toFixed(1)}`, x, y + h / 2 + 11);
+      ctx.restore();
 
       // Вектор скорости
-      if (Math.abs(velocity) > 0.05) {
-        const vLen = velocity * 14;
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(x, y - 8);
-        ctx.lineTo(x + vLen, y - 8);
-        ctx.stroke();
+      if (this.showVectors && Math.abs(velocity) > 0.05) {
+        const vLen = Math.max(16, Math.min(80, Math.abs(velocity) * 16)) * Math.sign(velocity);
+        this.drawVector(ctx, x, y - 10, x + vLen, y - 10, strokeColor, `v${idx}=${velocity.toFixed(1)}м/с`, { x: velocity > 0 ? 6 : -45, y: -6 });
       }
-      ctx.restore();
+
+      // Вектор импульса
+      if (this.showMomentum && Math.abs(velocity) > 0.05) {
+        const p = mass * velocity;
+        const pLen = Math.max(16, Math.min(95, Math.abs(p) * 8)) * Math.sign(p);
+        this.drawVector(ctx, x, y - 26, x + pLen, y - 26, "#a855f7", `p${idx}=${p.toFixed(1)}`, { x: p > 0 ? 6 : -40, y: -6 });
+      }
     },
     renderGraph() {
       const canvas = this.$refs.graphCanvas;
@@ -293,6 +353,44 @@ export default {
 
           <div class="relative w-full h-[340px] sm:h-[380px] bg-slate-950/70 rounded-xl border border-slate-800/80 overflow-hidden">
             <canvas ref="simCanvas" class="w-full h-full block"></canvas>
+
+            <!-- Тумблеры векторов -->
+            <div class="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-auto">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button
+                  @click="showVectors = !showVectors"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showVectors ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="showVectors ? 'bg-sky-400' : 'bg-slate-600'"></span>
+                  <span>Скорости v₁ & v₂</span>
+                </button>
+
+                <button
+                  @click="showMomentum = !showMomentum"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showMomentum ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="showMomentum ? 'bg-purple-400' : 'bg-slate-600'"></span>
+                  <span>Импульсы p₁ & p₂</span>
+                </button>
+
+                <button
+                  @click="showForces = !showForces"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showForces ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="showForces ? 'bg-rose-400' : 'bg-slate-600'"></span>
+                  <span>Силы соударения F₁₂</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -342,28 +440,74 @@ export default {
 
           <!-- Тележка 1 -->
           <div class="space-y-2">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Масса тележки 1 <span class="font-mono text-sky-400">m₁</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ m1.toFixed(1) }} кг</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.2"
+                  max="10.0"
+                  step="0.1"
+                  v-model.number="m1"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">кг</span>
+              </div>
             </div>
             <input type="range" min="0.5" max="5.0" step="0.5" v-model.number="m1" @input="reset" />
-            <div class="flex justify-between items-baseline pt-1">
-              <label class="text-sm font-medium text-slate-200">Скорость тележки 1 <span class="font-mono text-sky-400">v₁</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ v1.toFixed(1) }} м/с</span>
+
+            <div class="flex justify-between items-center pt-2">
+              <label class="text-sm font-medium text-slate-200">Скорость 1 <span class="font-mono text-sky-400">v₁</span></label>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.5"
+                  max="10.0"
+                  step="0.5"
+                  v-model.number="v1"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">м/с</span>
+              </div>
             </div>
             <input type="range" min="1.0" max="6.0" step="0.5" v-model.number="v1" @input="reset" />
           </div>
 
           <!-- Тележка 2 -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Масса тележки 2 <span class="font-mono text-amber-400">m₂</span></label>
-              <span class="font-mono text-base font-bold text-amber-400">{{ m2.toFixed(1) }} кг</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.2"
+                  max="10.0"
+                  step="0.1"
+                  v-model.number="m2"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">кг</span>
+              </div>
             </div>
             <input type="range" min="0.5" max="5.0" step="0.5" v-model.number="m2" @input="reset" />
-            <div class="flex justify-between items-baseline pt-1">
-              <label class="text-sm font-medium text-slate-200">Скорость тележки 2 <span class="font-mono text-amber-400">v₂</span></label>
-              <span class="font-mono text-base font-bold text-amber-400">{{ v2.toFixed(1) }} м/с</span>
+
+            <div class="flex justify-between items-center pt-2">
+              <label class="text-sm font-medium text-slate-200">Скорость 2 <span class="font-mono text-amber-400">v₂</span></label>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="-6.0"
+                  max="6.0"
+                  step="0.5"
+                  v-model.number="v2"
+                  @input="reset"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">м/с</span>
+              </div>
             </div>
             <input type="range" min="-3.0" max="3.0" step="0.5" v-model.number="v2" @input="reset" />
           </div>
@@ -372,36 +516,67 @@ export default {
         <!-- Дашборд расчетов -->
         <div class="glass-panel rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between space-y-4">
           <div>
-            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5">
-              Законы сохранения
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5 flex items-center justify-between">
+              <span>Законы сохранения</span>
+              <span class="text-[11px] font-mono font-normal text-sky-400">P = const</span>
             </h2>
 
-            <div class="grid grid-cols-2 gap-3 font-mono">
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Полный импульс P</span>
-                <span class="text-lg font-bold text-white">{{ pInitial.toFixed(1) }} кг·м/с</span>
+            <div class="grid grid-cols-2 gap-2.5 font-mono text-xs">
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Полный импульс P</span>
+                <span class="text-base font-bold text-white">{{ pInitial.toFixed(2) }} кг·м/с</span>
                 <div class="text-[10px] text-slate-500 mt-0.5">m₁v₁ + m₂v₂ = const</div>
               </div>
 
-              <div class="bg-rose-950/30 border border-rose-500/30 rounded-xl p-3">
-                <span class="text-[11px] text-rose-300 block">Потеря энергии ΔEk</span>
-                <span class="text-lg font-bold text-rose-400">{{ theoreticalOutcomes.energyLoss.toFixed(2) }} Дж</span>
-                <div class="text-[10px] text-rose-300/70 mt-0.5">Переход в тепло Q</div>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Скорость ц. масс v_см</span>
+                <span class="text-base font-bold text-sky-400">{{ centerOfMassVelocity.toFixed(2) }} м/с</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">P / (m₁ + m₂)</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Скорость v₁' после</span>
+              <div class="bg-rose-950/30 border border-rose-500/30 rounded-xl p-2.5">
+                <span class="text-[10px] text-rose-300 block">Потеря энергии ΔEk</span>
+                <span class="text-base font-bold text-rose-400">{{ theoreticalOutcomes.energyLoss.toFixed(2) }} Дж</span>
+                <div class="text-[10px] text-rose-300/70 mt-0.5">{{ collisionType === 'elastic' ? 'Упруго (0 Дж)' : 'Тепло Q' }}</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Ударный импульс J</span>
+                <span class="text-base font-bold text-purple-400">{{ theoreticalOutcomes.impulse.toFixed(2) }} Н·с</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">|Δp₁| = |Δp₂|</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Скорость v₁' после</span>
                 <span class="text-base font-bold text-sky-400">{{ theoreticalOutcomes.v1Final.toFixed(2) }} м/с</span>
-                <div class="text-[10px] text-slate-500 mt-0.5">Тележка 1</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">p₁' = {{(m1 * theoreticalOutcomes.v1Final).toFixed(1)}}</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Скорость v₂' после</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Скорость v₂' после</span>
                 <span class="text-base font-bold text-amber-400">{{ theoreticalOutcomes.v2Final.toFixed(2) }} м/с</span>
-                <div class="text-[10px] text-slate-500 mt-0.5">Тележка 2</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">p₂' = {{(m2 * theoreticalOutcomes.v2Final).toFixed(1)}}</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Ek до удара</span>
+                <span class="text-base font-bold text-emerald-400">{{ ekInitial.toFixed(2) }} Дж</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">Начальная сумма</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Ek после удара</span>
+                <span class="text-base font-bold text-white">{{ theoreticalOutcomes.ekFinal.toFixed(2) }} Дж</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">Конечная сумма</div>
               </div>
             </div>
           </div>
+
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1">
+            <span class="font-semibold text-slate-200 block">Закон сохранения импульса:</span>
+            В замкнутой системе векторная сумма импульсов тел остаётся неизменной при любых соударениях, независимо от того, упругий удар или неупругий.
+          </div>
+        </div>
 
           <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1">
             <span class="font-semibold text-slate-200 block">Закон сохранения импульса:</span>

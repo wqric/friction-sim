@@ -24,20 +24,33 @@ export default {
       let t = this.T;
 
       if (this.processType === 'isotherm') {
-        // T фиксирована, P = (T * factor) / V
         p = (this.T * factor) / this.V;
       } else if (this.processType === 'isobar') {
-        // P фиксировано, V = (this.T * factor) / this.P
         v = (this.T * factor) / this.P;
       } else if (this.processType === 'isochore') {
-        // V фиксирован, P = (this.T * factor) / this.V
         p = (this.T * factor) / this.V;
       }
+
+      // Дополнительные термодинамические величины
+      const nMoles = 0.0802; // моль
+      const uInternal = 1.5 * nMoles * 8.314 * t;
+      const vRms = Math.sqrt((3 * 8.314 * t) / 0.029); // для воздуха M = 29 г/моль
+      const pAtm = p / 101.325;
+      const tCelsius = t - 273.15;
+      const eKinMol = 1.5 * 1.38e-23 * t * 1e21; // в 10^-21 Дж
+      const pistonForce = p * 0.01 * 1000 * 0.02; // сила давления на поршень, Н
 
       return {
         P: p,
         V: v,
-        T: t
+        T: t,
+        nMoles,
+        uInternal,
+        vRms,
+        pAtm,
+        tCelsius,
+        eKinMol,
+        pistonForce
       };
     }
   },
@@ -291,33 +304,67 @@ export default {
       <div class="lg:col-span-4 flex flex-col gap-6">
         
         <div class="glass-panel rounded-2xl p-5 shadow-xl space-y-5">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5">
-            Термодинамические параметры
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 flex items-center justify-between">
+            <span>Термодинамические параметры</span>
+            <span class="text-xs font-mono text-sky-400">Точный ввод & ползунки</span>
           </h2>
 
           <!-- Температура T -->
           <div class="space-y-2">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Температура <span class="font-mono text-sky-400">T</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ T.toFixed(0) }} К</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="100"
+                  max="1000"
+                  step="5"
+                  v-model.number="T"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">К</span>
+              </div>
             </div>
             <input type="range" min="150" max="600" step="10" v-model.number="T" />
+            <div class="flex justify-between text-[11px] font-mono text-slate-500">
+              <span>150 К (-123°C)</span><span>300 К (+27°C)</span><span>600 К (+327°C)</span>
+            </div>
           </div>
 
           <!-- Объем V -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60" v-if="processType !== 'isochore'">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Объем <span class="font-mono text-sky-400">V</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ V.toFixed(1) }} л</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.5"
+                  max="10.0"
+                  step="0.1"
+                  v-model.number="V"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">л</span>
+              </div>
             </div>
             <input type="range" min="1.0" max="5.0" step="0.1" v-model.number="V" />
           </div>
 
           <!-- Давление P -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60" v-if="processType === 'isobar'">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Давление <span class="font-mono text-sky-400">P</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ P.toFixed(0) }} кПа</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="20"
+                  max="500"
+                  step="5"
+                  v-model.number="P"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">кПа</span>
+              </div>
             </div>
             <input type="range" min="50" max="250" step="10" v-model.number="P" />
           </div>
@@ -325,36 +372,65 @@ export default {
 
         <div class="glass-panel rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between space-y-4">
           <div>
-            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5">
-              Состояние газа
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5 flex items-center justify-between">
+              <span>Состояние газа в реальном времени</span>
+              <span class="text-[11px] font-mono font-normal text-sky-400">Уравнение Менделеева-Клапейрона</span>
             </h2>
 
-            <div class="grid grid-cols-2 gap-3 font-mono">
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Давление P</span>
-                <span class="text-lg font-bold text-sky-400">{{ calculatedState.P.toFixed(1) }} кПа</span>
+            <div class="grid grid-cols-2 gap-2.5 font-mono text-xs">
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Давление P</span>
+                <span class="text-base font-bold text-sky-400">{{ calculatedState.P.toFixed(1) }} кПа</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">{{ calculatedState.pAtm.toFixed(2) }} атм</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Объем V</span>
-                <span class="text-lg font-bold text-emerald-400">{{ calculatedState.V.toFixed(2) }} л</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Объем V</span>
+                <span class="text-base font-bold text-emerald-400">{{ calculatedState.V.toFixed(2) }} л</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">{{ (calculatedState.V * 0.001).toFixed(4) }} м³</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Температура T</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Температура T</span>
                 <span class="text-base font-bold text-amber-400">{{ calculatedState.T.toFixed(0) }} К</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">{{ calculatedState.tCelsius.toFixed(1) }} °C</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Ср. скор. молекул</span>
-                <span class="text-base font-bold text-indigo-300">{{ (Math.sqrt(calculatedState.T) * 28).toFixed(0) }} м/с</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Внутр. энергия U</span>
+                <span class="text-base font-bold text-rose-400">{{ calculatedState.uInternal.toFixed(1) }} Дж</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">3/2 · ν · R · T</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Ср. скор. молекул</span>
+                <span class="text-base font-bold text-indigo-300">{{ calculatedState.vRms.toFixed(0) }} м/с</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">√(3RT/M) воздуха</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Ср. эн. молекулы</span>
+                <span class="text-base font-bold text-white">{{ calculatedState.eKinMol.toFixed(2) }}</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">·10⁻²¹ Дж (3/2 kT)</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Сила на поршень F</span>
+                <span class="text-base font-bold text-purple-400">{{ calculatedState.pistonForce.toFixed(1) }} Н</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">P · S_поршня</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Кол-во вещества ν</span>
+                <span class="text-base font-bold text-sky-300">{{ calculatedState.nMoles.toFixed(3) }} моль</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">N ≈ 4.8·10²² шт.</div>
               </div>
             </div>
           </div>
 
           <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1">
-            <span class="font-semibold text-slate-200 block">Уравнение Клапейрона:</span>
-            Для постоянной массы идеального газа отношение произведения давления на объем к температуре остается неизменным: <span class="font-mono text-sky-400">(P·V)/T = const</span>.
+            <span class="font-semibold text-slate-200 block">Уравнение Менделеева-Клапейрона:</span>
+            Для постоянной массы идеального газа отношение произведения давления на объем к температуре остается неизменным: <span class="font-mono text-sky-400">(P·V)/T = ν·R = const</span>.
           </div>
         </div>
 

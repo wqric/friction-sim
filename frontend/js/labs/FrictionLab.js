@@ -9,7 +9,10 @@ export default {
 
       isAnimationEnabled: true,
       autoLoop: true,
+      showForces: true,
       showProjections: true,
+      showMotionVectors: true,
+      showVectorValues: true,
       blockOffset: 0,
       blockVelocity: 0,
       lastFrameTime: performance.now(),
@@ -35,6 +38,12 @@ export default {
       const netForce = isSliding ? Math.max(0, fPull - fMaxStatic) : 0;
       const accel = netForce / this.mass;
 
+      const tanAlpha = Math.tan(alphaRad);
+      const safetyFactor = tanAlpha > 1e-4 ? this.mu / tanAlpha : 999;
+      const ek = 0.5 * this.mass * this.blockVelocity * this.blockVelocity;
+      const workFric = fFriction * this.blockOffset;
+      const powerDiss = fFriction * this.blockVelocity;
+
       return {
         alphaRad,
         critAngleDeg,
@@ -44,8 +53,13 @@ export default {
         fNormal,
         fMaxStatic,
         fFriction,
+        netForce,
         isSliding,
-        accel
+        accel,
+        safetyFactor,
+        ek,
+        workFric,
+        powerDiss
       };
     }
   },
@@ -309,7 +323,7 @@ export default {
       ctx.fill();
       ctx.restore();
 
-      // Векторы сил
+      // Векторы сил и движения
       const vectorScale = 105 / Math.max(phys.mg, 1);
       const downSlopeX = -Math.cos(alpha);
       const downSlopeY = Math.sin(alpha);
@@ -330,43 +344,71 @@ export default {
       const cosEndX = cmX + intoSlopeX * normLen;
       const cosEndY = cmY + intoSlopeY * normLen;
 
-      if (this.showProjections && this.alpha > 0.5) {
-        ctx.save();
-        ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
-        ctx.lineWidth = 1.2;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.moveTo(pullEndX, pullEndY);
-        ctx.lineTo(mgEndX, mgEndY);
-        ctx.lineTo(cosEndX, cosEndY);
-        ctx.stroke();
-        ctx.restore();
+      if (this.showForces) {
+        if (this.showProjections && this.alpha > 0.5) {
+          ctx.save();
+          ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(pullEndX, pullEndY);
+          ctx.lineTo(mgEndX, mgEndY);
+          ctx.lineTo(cosEndX, cosEndY);
+          ctx.stroke();
+          ctx.restore();
 
-        this.drawVector(ctx, cmX, cmY, cosEndX, cosEndY, "#c084fc", "mg·cosα", { x: 8, y: 12 }, true);
-        this.drawVector(ctx, cmX, cmY, pullEndX, pullEndY, "#fbbf24", "mg·sinα", { x: -62, y: 14 }, false);
+          const cosLabel = this.showVectorValues ? `mg·cosα=${phys.fNormal.toFixed(1)}Н` : "mg·cosα";
+          const pullLabel = this.showVectorValues ? `mg·sinα=${phys.fPull.toFixed(1)}Н` : "mg·sinα";
+          this.drawVector(ctx, cmX, cmY, cosEndX, cosEndY, "#c084fc", cosLabel, { x: 8, y: 12 }, true);
+          this.drawVector(ctx, cmX, cmY, pullEndX, pullEndY, "#fbbf24", pullLabel, { x: -62, y: 14 }, false);
+        }
+
+        const mgLabel = this.showVectorValues ? `mg=${phys.mg.toFixed(1)}Н` : "mg";
+        this.drawVector(ctx, cmX, cmY, mgEndX, mgEndY, "#38bdf8", mgLabel, { x: -28, y: 14 }, false);
+
+        const nLabel = this.showVectorValues ? `N=${phys.fNormal.toFixed(1)}Н` : "N";
+        const nEndX = cmX + normX * normLen;
+        const nEndY = cmY + normY * normLen;
+        this.drawVector(ctx, cmX, cmY, nEndX, nEndY, "#34d399", nLabel, { x: -24, y: -8 }, false);
+
+        const fricStartX = cmX - normX * (blockH * 0.28);
+        const fricStartY = cmY - normY * (blockH * 0.28);
+        const fricEndX = fricStartX + upSlopeX * fricLen;
+        const fricEndY = fricStartY + upSlopeY * fricLen;
+        if (phys.fFriction > 0.05) {
+          const fLabel = this.showVectorValues ? `F_тр=${phys.fFriction.toFixed(1)}Н` : "F_тр";
+          this.drawVector(ctx, fricStartX, fricStartY, fricEndX, fricEndY, "#f43f5e", fLabel, { x: 6, y: -8 }, false);
+        }
+
+        // Результирующая сила при скольжении
+        if (phys.isSliding && phys.netForce > 0.05) {
+          const netLen = phys.netForce * vectorScale;
+          const netEndX = cmX + downSlopeX * netLen;
+          const netEndY = cmY + downSlopeY * netLen;
+          const netLabel = this.showVectorValues ? `F_равн=${phys.netForce.toFixed(1)}Н` : "F_равн";
+          this.drawVector(ctx, cmX, cmY, netEndX, netEndY, "#f97316", netLabel, { x: -50, y: 22 }, false);
+        }
       }
 
-      this.drawVector(ctx, cmX, cmY, mgEndX, mgEndY, "#38bdf8", "mg", { x: -28, y: 14 }, false);
+      // Векторы кинематики (скорость и ускорение)
+      if (this.showMotionVectors) {
+        if (this.blockVelocity > 0.05) {
+          const vLen = Math.min(85, Math.max(20, this.blockVelocity * 22));
+          const vStartX = cmX + normX * (blockH * 0.7);
+          const vStartY = cmY + normY * (blockH * 0.7);
+          const vEndX = vStartX + downSlopeX * vLen;
+          const vEndY = vStartY + downSlopeY * vLen;
+          this.drawVector(ctx, vStartX, vStartY, vEndX, vEndY, "#38bdf8", `v=${this.blockVelocity.toFixed(2)}м/с`, { x: -45, y: -8 }, false);
+        }
 
-      const nEndX = cmX + normX * normLen;
-      const nEndY = cmY + normY * normLen;
-      this.drawVector(ctx, cmX, cmY, nEndX, nEndY, "#34d399", "N", { x: -24, y: -8 }, false);
-
-      const fricStartX = cmX - normX * (blockH * 0.28);
-      const fricStartY = cmY - normY * (blockH * 0.28);
-      const fricEndX = fricStartX + upSlopeX * fricLen;
-      const fricEndY = fricStartY + upSlopeY * fricLen;
-      if (phys.fFriction > 0.05) {
-        this.drawVector(ctx, fricStartX, fricStartY, fricEndX, fricEndY, "#f43f5e", "F_тр", { x: 6, y: -8 }, false);
-      }
-
-      if (phys.isSliding && phys.accel > 0.05) {
-        const accStartX = cmX + normX * (blockH * 0.95);
-        const accStartY = cmY + normY * (blockH * 0.95);
-        const accLen = Math.min(80, Math.max(24, phys.accel * 6));
-        const accEndX = accStartX + downSlopeX * accLen;
-        const accEndY = accStartY + downSlopeY * accLen;
-        this.drawVector(ctx, accStartX, accStartY, accEndX, accEndY, "#818cf8", `a=${phys.accel.toFixed(1)}м/с²`, { x: -45, y: -10 }, false);
+        if (phys.isSliding && phys.accel > 0.05) {
+          const accStartX = cmX + normX * (blockH * 1.15);
+          const accStartY = cmY + normY * (blockH * 1.15);
+          const accLen = Math.min(80, Math.max(24, phys.accel * 6.5));
+          const accEndX = accStartX + downSlopeX * accLen;
+          const accEndY = accStartY + downSlopeY * accLen;
+          this.drawVector(ctx, accStartX, accStartY, accEndX, accEndY, "#a855f7", `a=${phys.accel.toFixed(2)}м/с²`, { x: -45, y: -10 }, false);
+        }
       }
     },
     renderGraph() {
@@ -673,14 +715,17 @@ export default {
               @touchstart.passive="onSimMouseDown"
             ></canvas>
 
-            <!-- Легенда векторов -->
-            <div class="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-xl p-2.5 text-xs space-y-1.5 pointer-events-none shadow-lg">
-              <div class="font-semibold text-slate-300 mb-1 border-b border-slate-800 pb-1">Векторы сил:</div>
-              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-rose-500 inline-block"></span><span class="text-slate-300 font-mono">F_тр</span> <span class="text-slate-500">— трение</span></div>
-              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-amber-400 inline-block"></span><span class="text-slate-300 font-mono">mg·sinα</span> <span class="text-slate-500">— скатывающая</span></div>
-              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-emerald-400 inline-block"></span><span class="text-slate-300 font-mono">N</span> <span class="text-slate-500">— реакция опоры</span></div>
-              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-purple-400 inline-block"></span><span class="text-slate-300 font-mono">mg·cosα</span> <span class="text-slate-500">— прижимающая</span></div>
-              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-sky-400 inline-block"></span><span class="text-slate-300 font-mono">mg</span> <span class="text-slate-500">— сила тяжести</span></div>
+            <!-- Легенда векторов (когда включены) -->
+            <div v-if="showForces" class="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-xl p-2.5 text-xs space-y-1.5 pointer-events-none shadow-lg">
+              <div class="font-semibold text-slate-300 mb-1 border-b border-slate-800 pb-1 flex items-center justify-between gap-3">
+                <span>Векторы сил:</span>
+                <span class="text-[10px] text-sky-400 font-mono">активны</span>
+              </div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-rose-500 inline-block"></span><span class="text-slate-300 font-mono">F_тр</span> <span class="text-slate-400">— трение ({{ physics.fFriction.toFixed(1) }} Н)</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-amber-400 inline-block"></span><span class="text-slate-300 font-mono">mg·sinα</span> <span class="text-slate-400">— скатывающая ({{ physics.fPull.toFixed(1) }} Н)</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-emerald-400 inline-block"></span><span class="text-slate-300 font-mono">N</span> <span class="text-slate-400">— реакция опоры ({{ physics.fNormal.toFixed(1) }} Н)</span></div>
+              <div v-if="showProjections" class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-purple-400 inline-block"></span><span class="text-slate-300 font-mono">mg·cosα</span> <span class="text-slate-400">— прижимающая</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-sky-400 inline-block"></span><span class="text-slate-300 font-mono">mg</span> <span class="text-slate-400">— тяжесть ({{ physics.mg.toFixed(1) }} Н)</span></div>
             </div>
 
             <!-- Подсказка интерактива -->
@@ -688,15 +733,59 @@ export default {
               💡 Перетаскивайте горку прямо на холсте
             </div>
 
-            <div class="absolute bottom-3 left-3 flex flex-wrap gap-2">
-              <label class="flex items-center gap-1.5 bg-slate-900/85 border border-slate-800 px-2.5 py-1 rounded-lg text-xs text-slate-300 cursor-pointer hover:border-slate-700 transition">
-                <input type="checkbox" v-model="showProjections" class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0">
-                <span>Проекции mg</span>
-              </label>
-              <label class="flex items-center gap-1.5 bg-slate-900/85 border border-slate-800 px-2.5 py-1 rounded-lg text-xs text-slate-300 cursor-pointer hover:border-slate-700 transition">
-                <input type="checkbox" v-model="autoLoop" class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0">
-                <span>Автовозврат бруска</span>
-              </label>
+            <!-- Интерактивная панель тумблеров векторов и анимации -->
+            <div class="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-auto">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button
+                  @click="showForces = !showForces"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showForces ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="showForces ? 'bg-sky-400' : 'bg-slate-600'"></span>
+                  <span>Векторы сил</span>
+                </button>
+
+                <button
+                  @click="showProjections = !showProjections"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showProjections ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="showProjections ? 'bg-purple-400' : 'bg-slate-600'"></span>
+                  <span>Проекции mg</span>
+                </button>
+
+                <button
+                  @click="showMotionVectors = !showMotionVectors"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showMotionVectors ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="showMotionVectors ? 'bg-amber-400' : 'bg-slate-600'"></span>
+                  <span>v и a</span>
+                </button>
+
+                <button
+                  @click="showVectorValues = !showVectorValues"
+                  :class="[
+                    'px-2.5 py-1 text-xs rounded-lg border font-mono transition flex items-center gap-1.5 backdrop-blur-md',
+                    showVectorValues ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  <span>Значения (Н)</span>
+                </button>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <label class="flex items-center gap-1.5 bg-slate-900/85 border border-slate-800 px-2.5 py-1 rounded-lg text-xs text-slate-300 cursor-pointer hover:border-slate-700 transition backdrop-blur-md">
+                  <input type="checkbox" v-model="autoLoop" class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0">
+                  <span>Автовозврат бруска</span>
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -751,9 +840,19 @@ export default {
 
           <!-- Угол α -->
           <div class="space-y-2">
-            <div class="flex justify-between items-baseline">
-              <label class="text-sm font-medium text-slate-200">Угол наклона плоскости <span class="font-mono text-sky-400">α</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ alpha.toFixed(1) }}°</span>
+            <div class="flex justify-between items-center">
+              <label class="text-sm font-medium text-slate-200">Угол наклона <span class="font-mono text-sky-400">α</span></label>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="85"
+                  step="0.5"
+                  v-model.number="alpha"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">°</span>
+              </div>
             </div>
             <input type="range" min="0" max="85" step="0.5" v-model.number="alpha" />
             <div class="flex justify-between text-[11px] font-mono text-slate-500">
@@ -763,9 +862,18 @@ export default {
 
           <!-- Коэффициент μ -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
-            <div class="flex justify-between items-baseline">
-              <label class="text-sm font-medium text-slate-200">Коэффициент трения <span class="font-mono text-sky-400">μ</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ mu.toFixed(2) }}</span>
+            <div class="flex justify-between items-center">
+              <label class="text-sm font-medium text-slate-200">Коэф. трения <span class="font-mono text-sky-400">μ</span></label>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.01"
+                  max="1.50"
+                  step="0.01"
+                  v-model.number="mu"
+                  class="num-input w-20"
+                />
+              </div>
             </div>
             <input type="range" min="0.05" max="1.20" step="0.01" v-model.number="mu" />
 
@@ -791,9 +899,19 @@ export default {
 
           <!-- Масса m -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
-            <div class="flex justify-between items-baseline">
+            <div class="flex justify-between items-center">
               <label class="text-sm font-medium text-slate-200">Масса бруска <span class="font-mono text-sky-400">m</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ mass.toFixed(1) }} кг</span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.1"
+                  max="25"
+                  step="0.1"
+                  v-model.number="mass"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">кг</span>
+              </div>
             </div>
             <input type="range" min="0.5" max="10" step="0.5" v-model.number="mass" />
             <div class="flex justify-between text-[11px] font-mono text-slate-500">
@@ -803,9 +921,19 @@ export default {
 
           <!-- Ускорение g -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
-            <div class="flex justify-between items-baseline">
-              <label class="text-sm font-medium text-slate-200">Ускорение своб. падения <span class="font-mono text-sky-400">g</span></label>
-              <span class="font-mono text-base font-bold text-sky-400">{{ g.toFixed(2) }} м/с²</span>
+            <div class="flex justify-between items-center">
+              <label class="text-sm font-medium text-slate-200">Ускорение падения <span class="font-mono text-sky-400">g</span></label>
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0.5"
+                  max="30"
+                  step="0.01"
+                  v-model.number="g"
+                  class="num-input w-20"
+                />
+                <span class="font-mono text-xs text-slate-400">м/с²</span>
+              </div>
             </div>
             <input type="range" min="1.6" max="24.8" step="0.01" v-model.number="g" />
             <div class="grid grid-cols-4 gap-1 pt-1">
@@ -827,45 +955,74 @@ export default {
         <!-- Дашборд расчётных данных -->
         <div class="glass-panel rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between space-y-4">
           <div>
-            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5">
-              Расчётные данные в реальном времени
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5 flex items-center justify-between">
+              <span>Расчётные данные в реальном времени</span>
+              <span class="text-[11px] font-mono font-normal text-slate-400">12 параметров</span>
             </h2>
 
-            <div class="grid grid-cols-2 gap-3 font-mono">
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Крит. угол α_кр</span>
-                <span class="text-lg font-bold text-white">{{ physics.critAngleDeg.toFixed(2) }}°</span>
-                <div class="text-[10px] text-slate-500 mt-0.5">arctan(μ)</div>
+            <div class="grid grid-cols-2 gap-2.5 font-mono text-xs">
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Крит. угол α_кр</span>
+                <span class="text-base font-bold text-white">{{ physics.critAngleDeg.toFixed(2) }}°</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">arctan(μ) = {{ physics.critAngleRad.toFixed(3) }} рад</div>
               </div>
 
-              <div class="bg-rose-950/30 border border-rose-500/30 rounded-xl p-3">
-                <span class="text-[11px] text-rose-300 block">Сила трения F_тр</span>
-                <span class="text-lg font-bold text-rose-400">{{ physics.fFriction.toFixed(2) }} Н</span>
-                <div class="text-[10px] text-rose-300/70 mt-0.5">{{ physics.isSliding ? '= μ·mg·cosα' : '= mg·sinα' }}</div>
+              <div class="bg-rose-950/30 border border-rose-500/30 rounded-xl p-2.5">
+                <span class="text-[10px] text-rose-300 block">Сила трения F_тр</span>
+                <span class="text-base font-bold text-rose-400">{{ physics.fFriction.toFixed(2) }} Н</span>
+                <div class="text-[10px] text-rose-300/70 mt-0.5">{{ physics.isSliding ? 'μ·N (скольжение)' : 'mg·sinα (покой)' }}</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Скатывающая F_скат</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Скатывающая F_скат</span>
                 <span class="text-base font-bold text-amber-400">{{ physics.fPull.toFixed(2) }} Н</span>
                 <div class="text-[10px] text-slate-500 mt-0.5">mg·sin(α)</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Макс. трение покоя</span>
-                <span class="text-base font-bold text-sky-300">{{ physics.fMaxStatic.toFixed(2) }} Н</span>
-                <div class="text-[10px] text-slate-500 mt-0.5">μ·mg·cos(α)</div>
-              </div>
-
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Реакция опоры N</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Прижимающая N</span>
                 <span class="text-base font-bold text-emerald-400">{{ physics.fNormal.toFixed(2) }} Н</span>
                 <div class="text-[10px] text-slate-500 mt-0.5">mg·cos(α)</div>
               </div>
 
-              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
-                <span class="text-[11px] text-slate-400 block">Ускорение бруска</span>
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Макс. трение покоя</span>
+                <span class="text-base font-bold text-sky-300">{{ physics.fMaxStatic.toFixed(2) }} Н</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">μ·mg·cos(α)</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Результ. ускорение a</span>
                 <span class="text-base font-bold text-indigo-300">{{ physics.accel.toFixed(2) }} м/с²</span>
                 <div class="text-[10px] text-slate-500 mt-0.5">g·(sinα - μ·cosα)</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Скорость бруска v</span>
+                <span class="text-base font-bold text-sky-400">{{ blockVelocity.toFixed(2) }} м/с</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">S = {{ blockOffset.toFixed(2) }} м</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Кинетич. энергия Ek</span>
+                <span class="text-base font-bold text-amber-300">{{ physics.ek.toFixed(2) }} Дж</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">mv² / 2</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Работа трения A_тр</span>
+                <span class="text-base font-bold text-rose-300">{{ physics.workFric.toFixed(2) }} Дж</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">F_тр · S</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <span class="text-[10px] text-slate-400 block">Запас сцепления k</span>
+                <span class="text-base font-bold" :class="physics.safetyFactor >= 1 ? 'text-emerald-400' : 'text-amber-400'">
+                  {{ physics.safetyFactor > 99 ? '∞' : physics.safetyFactor.toFixed(2) }}
+                </span>
+                <div class="text-[10px] mt-0.5" :class="physics.safetyFactor >= 1 ? 'text-emerald-500' : 'text-amber-500'">
+                  {{ physics.safetyFactor >= 1 ? 'Устойчив' : 'Скользит' }}
+                </div>
               </div>
             </div>
           </div>
@@ -879,6 +1036,9 @@ export default {
             </div>
             <p>
               Пока <span class="text-emerald-400 font-mono">α ≤ arctan(μ)</span>, брусок покоится, и сила трения в точности равна скатывающей силе: <span class="font-mono text-slate-200">F_тр = mg·sinα</span>.
+            </p>
+            <p>
+              При <span class="text-amber-400 font-mono">α > arctan(μ)</span> начинается скольжение. Прижимающая сила уменьшается, поэтому сила трения начинает убывать: <span class="font-mono text-slate-200">F_тр = μ·mg·cosα</span>.
             </p>
             <p>
               При <span class="text-amber-400 font-mono">α > arctan(μ)</span> начинается скольжение. Прижимающая сила уменьшается, поэтому сила трения начинает убывать: <span class="font-mono text-slate-200">F_тр = μ·mg·cosα</span>.
