@@ -8,44 +8,45 @@ export default {
   },
   emits: ['select-lab'],
   template: `
-    <div class="max-w-5xl mx-auto py-10">
+    <div class="max-w-6xl mx-auto px-4 py-8">
       <!-- Section Intro -->
       <div class="mb-8">
-        <h1 class="text-xl font-medium tracking-tight text-[#eef0f5]">Виртуальные лабораторные работы</h1>
-        <p class="text-xs text-[#a3a9b8] mt-1.5 max-w-xl leading-relaxed">
-          Интерактивное моделирование динамических систем, векторных диаграмм и аналитических законов классической механики.
+        <span class="text-xs font-mono uppercase tracking-wider text-sky-400">Учебный комплекс</span>
+        <h1 class="text-2xl font-bold tracking-tight text-white mt-1">Виртуальная лаборатория механики</h1>
+        <p class="text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
+          Интерактивные математические модели физических явлений с динамическим расчётом векторов сил, фазовыми траекториями и практическими расчётными задачами.
         </p>
       </div>
 
-      <!-- Compact Industrial Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <!-- Grid of simulations -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
           v-for="topic in topics"
           :key="topic.id"
           @click="$emit('select-lab', topic.id)"
-          class="lab-card p-4 cursor-pointer flex flex-col justify-between group"
+          class="lab-card p-5 cursor-pointer flex flex-col justify-between group hover:border-sky-500/40"
         >
           <div>
-            <div class="flex items-center justify-between text-xs mb-2">
-              <span class="text-[11px] font-mono text-[#7a8296]">{{ topic.section }}</span>
-              <span class="text-[11px] font-mono text-[#a3a9b8] bg-[#181d28] px-2 py-0.5 rounded-[3px] border border-white/[0.06]">
+            <div class="flex items-center justify-between mb-2.5">
+              <span class="text-[11px] font-mono text-slate-400 uppercase tracking-wider">{{ topic.section }}</span>
+              <span class="text-[11px] px-2 py-0.5 rounded bg-sky-950/60 border border-sky-500/20 text-sky-300 font-mono">
                 {{ topic.badge }}
               </span>
             </div>
             
-            <h2 class="text-sm font-medium text-[#eef0f5] group-hover:text-white transition-colors">
+            <h2 class="text-base font-semibold text-slate-100 group-hover:text-sky-300 transition-colors">
               {{ topic.title }}
             </h2>
-            <p class="text-xs text-[#a3a9b8] mt-1.5 leading-relaxed">
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
               {{ topic.description }}
             </p>
           </div>
 
-          <div class="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs font-mono">
-            <span class="text-[11px] text-[#7a8296]">
+          <div class="mt-5 pt-3.5 border-t border-white/5 flex items-center justify-between text-xs font-mono text-slate-400">
+            <span class="text-slate-300 text-[11px] bg-slate-900 px-2 py-0.5 rounded border border-white/5">
               {{ topic.formula }}
             </span>
-            <span class="text-xs text-[#a3a9b8] group-hover:text-[#eef0f5] transition-colors">
+            <span class="text-sky-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
               Открыть →
             </span>
           </div>

@@ -64,61 +64,59 @@ export default {
     }
   },
   template: `
-    <div class="lab-panel p-4 mt-6">
-      <div class="flex items-center justify-between border-b border-white/[0.08] pb-3 mb-4">
+    <div class="lab-panel p-5 mt-6">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
         <div>
-          <h3 class="text-xs font-medium text-[#eef0f5]">Контрольные расчётные задачи</h3>
-          <p class="text-[11px] text-[#7a8296] mt-0.5">Численная проверка решений с допустимой погрешностью</p>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">Контрольные задачи с автопроверкой</h3>
+          <p class="text-xs text-slate-400 mt-0.5">Решите задачу с помощью модели или аналитических формул</p>
         </div>
-        <span class="text-[11px] font-mono text-[#7a8296]">
+        <span class="text-xs font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-white/5">
           Задач: {{ tasks.length }}
         </span>
       </div>
 
-      <div v-if="loading" class="text-xs text-[#7a8296] py-3 font-mono">
+      <div v-if="loading" class="text-xs text-slate-400 py-4 font-mono">
         Загрузка задач...
       </div>
 
-      <div v-else class="space-y-3">
+      <div v-else class="space-y-4">
         <div
           v-for="(task, index) in tasks"
           :key="task.id"
-          class="p-3.5 rounded-[4px] border transition-colors"
+          class="p-4 rounded border"
           :class="[
             results[task.id]?.is_correct === true
-              ? 'bg-[#181d28] border-[#34d399]/40'
+              ? 'bg-emerald-950/20 border-emerald-500/30'
               : results[task.id]?.is_correct === false
-                ? 'bg-[#181d28] border-[#f43f5e]/40'
-                : 'bg-[#11141c] border-white/[0.06]'
+                ? 'bg-rose-950/20 border-rose-500/30'
+                : 'bg-slate-900/40 border-white/5'
           ]"
         >
-          <div class="flex flex-col sm:flex-row items-start justify-between gap-3">
+          <div class="flex items-start justify-between gap-4">
             <div class="flex-1">
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] font-mono px-1.5 py-0.2 rounded-[2px] bg-[#181d28] text-[#a3a9b8] border border-white/[0.06]">
-                  Задача {{ index + 1 }}
-                </span>
-              </div>
-              <p class="text-xs text-[#eef0f5] mt-1.5 leading-relaxed">
+              <span class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 mr-2">
+                Задача {{ index + 1 }}
+              </span>
+              <p class="text-xs text-slate-200 mt-2 leading-relaxed">
                 {{ task.question }}
               </p>
 
               <!-- Hint toggle -->
-              <div class="mt-2">
+              <div class="mt-2.5">
                 <button
                   @click="toggleHint(task.id)"
-                  class="text-[11px] text-[#7a8296] hover:text-[#a3a9b8] transition-colors font-mono"
+                  class="text-[11px] text-sky-400 hover:text-sky-300 transition-colors font-mono"
                 >
-                  {{ showHints[task.id] ? 'Скрыть подсказку' : 'Показать подсказку' }}
+                  {{ showHints[task.id] ? 'Скрыть подсказку ↑' : 'Показать подсказку ↓' }}
                 </button>
-                <p v-if="showHints[task.id]" class="text-[11px] text-[#a3a9b8] font-mono mt-1 pl-2 border-l border-white/[0.12]">
+                <p v-if="showHints[task.id]" class="text-[11px] text-slate-400 font-mono mt-1 pl-2 border-l border-sky-500/30">
                   {{ task.hint }}
                 </p>
               </div>
             </div>
 
-            <!-- Input and action -->
-            <div class="w-full sm:w-44 shrink-0 flex flex-col items-end gap-1.5">
+            <!-- Input and submit -->
+            <div class="w-48 shrink-0 flex flex-col items-end gap-2">
               <div class="flex items-center gap-1.5 w-full">
                 <input
                   v-model="answers[task.id]"
@@ -126,13 +124,13 @@ export default {
                   step="any"
                   placeholder="Ответ"
                   @keyup.enter="checkAnswer(task)"
-                  class="w-full bg-[#181d28] border border-white/[0.1] rounded-[3px] px-2.5 py-1 text-xs font-mono text-[#eef0f5] placeholder-[#7a8296] focus:border-white/30"
+                  class="w-full bg-[#151a27] border border-white/10 rounded px-2.5 py-1 text-xs font-mono text-white placeholder-slate-500 focus:border-sky-500"
                 />
-                <span class="text-xs font-mono text-[#7a8296] w-6 shrink-0">{{ task.unit }}</span>
+                <span class="text-xs font-mono text-slate-400 w-8">{{ task.unit }}</span>
               </div>
               <button
                 @click="checkAnswer(task)"
-                class="w-full py-1 text-xs font-normal rounded-[3px] bg-[#181d28] hover:bg-[#1f2533] text-[#eef0f5] border border-white/[0.08] transition"
+                class="w-full py-1 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
               >
                 Проверить
               </button>
@@ -140,14 +138,14 @@ export default {
           </div>
 
           <!-- Result feedback -->
-          <div v-if="results[task.id]" class="mt-2.5 pt-2 border-t border-white/[0.06] text-xs font-mono">
-            <span v-if="results[task.id].is_correct" class="text-[#34d399] flex items-center gap-1.5">
-              <span>✓ Верно.</span>
-              <span class="text-[#a3a9b8] font-sans text-[11px]">{{ results[task.id].explanation }}</span>
+          <div v-if="results[task.id]" class="mt-3 pt-2.5 border-t border-white/5 text-xs font-mono">
+            <span v-if="results[task.id].is_correct" class="text-emerald-400 flex items-center gap-1.5">
+              <span>✓ Верно!</span>
+              <span class="text-slate-300 font-sans text-[11px]">{{ results[task.id].explanation }}</span>
             </span>
-            <span v-else class="text-[#f43f5e] flex items-center gap-1.5">
+            <span v-else class="text-rose-400 flex items-center gap-1.5">
               <span>✕ Неверно.</span>
-              <span class="text-[#7a8296] font-sans text-[11px]">{{ results[task.id].explanation }}</span>
+              <span class="text-slate-400 font-sans text-[11px]">{{ results[task.id].explanation }}</span>
             </span>
           </div>
         </div>
