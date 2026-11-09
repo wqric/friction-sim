@@ -19,7 +19,8 @@ export default {
       isRunning: true,
       phaseHistory: [],
       lastTime: performance.now(),
-      animationFrameId: null
+      animationFrameId: null,
+      isDraggingBob: false
     };
   },
   computed: {
@@ -45,11 +46,13 @@ export default {
     }
   },
   mounted() {
-    this.reset();
-    this.resizeCanvases();
-    window.addEventListener('resize', this.resizeCanvases);
-    this.lastTime = performance.now();
-    this.animate(this.lastTime);
+    this.$nextTick(() => {
+      this.reset();
+      this.resizeCanvases();
+      window.addEventListener('resize', this.resizeCanvases);
+      this.lastTime = performance.now();
+      this.animate(this.lastTime);
+    });
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.resizeCanvases);
@@ -70,15 +73,19 @@ export default {
       const graphCanvas = this.$refs.graphCanvas;
       if (!simCanvas || !graphCanvas) return;
 
-      const simRect = simCanvas.parentElement.getBoundingClientRect();
-      simCanvas.width = simRect.width * dpr;
-      simCanvas.height = simRect.height * dpr;
-      simCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      const simRect = simCanvas.getBoundingClientRect();
+      if (simRect.width > 0 && simRect.height > 0) {
+        simCanvas.width = simRect.width * dpr;
+        simCanvas.height = simRect.height * dpr;
+        simCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
 
-      const graphRect = graphCanvas.parentElement.getBoundingClientRect();
-      graphCanvas.width = graphRect.width * dpr;
-      graphCanvas.height = graphRect.height * dpr;
-      graphCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      const graphRect = graphCanvas.getBoundingClientRect();
+      if (graphRect.width > 0 && graphRect.height > 0) {
+        graphCanvas.width = graphRect.width * dpr;
+        graphCanvas.height = graphRect.height * dpr;
+        graphCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
     },
     renderSimulation() {
       const canvas = this.$refs.simCanvas;
@@ -89,7 +96,7 @@ export default {
 
       ctx.clearRect(0, 0, w, h);
 
-      // Фоновая сетка
+      // Сетка
       ctx.save();
       ctx.strokeStyle = "rgba(30, 41, 59, 0.45)";
       ctx.lineWidth = 1;
@@ -169,7 +176,7 @@ export default {
         }
         ctx.lineTo(cx, bobY); ctx.stroke();
 
-        // Груз пружины
+        // Груз
         const bw = 50 + this.mass * 4;
         const bh = 36;
         ctx.fillStyle = "#0284c7";
@@ -184,7 +191,7 @@ export default {
         ctx.restore();
       }
 
-      // Живой индикатор перекачки энергии (справа)
+      // Гистограмма энергии
       const e = this.energies;
       const barX = w - 90;
       const barH = 170;
@@ -199,11 +206,11 @@ export default {
       ctx.strokeRect(barX, cy + 30, 30, barH);
       ctx.strokeRect(barX + 38, cy + 30, 30, barH);
 
-      // Ek (Rose)
+      // Ek
       ctx.fillStyle = "#f43f5e";
       ctx.fillRect(barX + 1, cy + 30 + barH - ekH, 28, ekH);
 
-      // Ep (Emerald)
+      // Ep
       ctx.fillStyle = "#10b981";
       ctx.fillRect(barX + 39, cy + 30 + barH - epH, 28, epH);
 
@@ -226,7 +233,6 @@ export default {
       const midX = w / 2;
       const midY = h / 2;
 
-      // Оси фазовой плоскости (Скорость от Координаты)
       ctx.save();
       ctx.strokeStyle = "rgba(51, 65, 85, 0.7)";
       ctx.lineWidth = 1.2;
@@ -238,7 +244,6 @@ export default {
       ctx.fillText("x (смещение)", w - 90, midY - 8);
       ctx.fillText("v (скорость)", midX + 8, 24);
 
-      // Фазовая траектория
       if (this.phaseHistory.length > 2) {
         ctx.strokeStyle = "#38bdf8";
         ctx.lineWidth = 2;
@@ -255,7 +260,6 @@ export default {
         ctx.stroke();
       }
 
-      // Текущая фазовая точка
       const curX = this.mode === 'math' ? this.theta : this.xSpring;
       const curV = this.energies.v;
       const ptX = midX + curX * 140;
@@ -265,11 +269,60 @@ export default {
       ctx.beginPath(); ctx.arc(ptX, ptY, 5, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     },
+    onSimMouseDown(e) {
+      this.isDraggingBob = true;
+      this.updatePendulumFromEvent(e);
+      window.addEventListener('mousemove', this.onSimMouseMove);
+      window.addEventListener('mouseup', this.onSimMouseUp);
+      window.addEventListener('touchmove', this.onSimMouseMove, { passive: false });
+      window.addEventListener('touchend', this.onSimMouseUp);
+    },
+    onSimMouseMove(e) {
+      if (this.isDraggingBob) this.updatePendulumFromEvent(e);
+    },
+    onSimMouseUp() {
+      this.isDraggingBob = false;
+      window.removeEventListener('mousemove', this.onSimMouseMove);
+      window.removeEventListener('mouseup', this.onSimMouseUp);
+      window.removeEventListener('touchmove', this.onSimMouseMove);
+      window.removeEventListener('touchend', this.onSimMouseUp);
+    },
+    updatePendulumFromEvent(e) {
+      const canvas = this.$refs.simCanvas;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const cx = w * 0.42;
+      const cy = 40;
+
+      if (this.mode === 'math') {
+        const dx = mx - cx;
+        const dy = my - cy;
+        let rad = Math.atan2(dx, dy);
+        rad = Math.max(-1.1, Math.min(1.1, rad));
+        this.theta = rad;
+        this.initialAngle = Math.abs((rad * 180) / Math.PI);
+        this.omega = 0;
+      } else {
+        const restLenPx = 100;
+        const pxScale = 180;
+        let disp = (my - cy - restLenPx) / pxScale;
+        disp = Math.max(-0.5, Math.min(0.5, disp));
+        this.xSpring = disp;
+        this.initialDisplacement = Math.abs(disp);
+        this.vSpring = 0;
+      }
+    },
     animate(now) {
       const dt = Math.min(0.04, (now - this.lastTime) / 1000);
       this.lastTime = now;
 
-      if (this.isRunning) {
+      if (this.isRunning && !this.isDraggingBob) {
         if (this.mode === 'math') {
           const alphaAcc = -(this.g / this.length) * Math.sin(this.theta) - this.damping * this.omega;
           this.omega += alphaAcc * dt;
@@ -292,10 +345,8 @@ export default {
   },
   template: `
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <!-- Холсты (8 колонок) -->
       <div class="lg:col-span-8 flex flex-col gap-6">
         
-        <!-- Холст 1: Осциллятор -->
         <div class="glass-panel rounded-2xl p-4 flex flex-col relative overflow-hidden shadow-xl">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3 z-10">
             <div class="flex items-center gap-2">
@@ -323,17 +374,25 @@ export default {
           </div>
 
           <div class="relative w-full h-[360px] sm:h-[400px] bg-slate-950/70 rounded-xl border border-slate-800/80 overflow-hidden">
-            <canvas ref="simCanvas" class="w-full h-full block"></canvas>
+            <canvas
+              ref="simCanvas"
+              class="w-full h-full block cursor-grab active:cursor-grabbing"
+              @mousedown="onSimMouseDown"
+              @touchstart.passive="onSimMouseDown"
+            ></canvas>
             
             <div class="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-xl p-2.5 text-xs space-y-1.5 pointer-events-none shadow-lg">
               <div class="font-semibold text-slate-300 mb-1 border-b border-slate-800 pb-1">Энергетическая шкала:</div>
               <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-rose-500 inline-block"></span><span class="text-slate-300 font-mono">Ek</span> <span class="text-slate-500">— кинетическая</span></div>
               <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-emerald-400 inline-block"></span><span class="text-slate-300 font-mono">Ep</span> <span class="text-slate-500">— потенциальная</span></div>
             </div>
+
+            <div class="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-lg px-2.5 py-1 text-[11px] font-mono text-sky-400 pointer-events-none">
+              💡 Перетаскивайте груз маятника курсором
+            </div>
           </div>
         </div>
 
-        <!-- Холст 2: Фазовый портрет -->
         <div class="glass-panel rounded-2xl p-4 flex flex-col shadow-xl">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
@@ -349,7 +408,6 @@ export default {
 
       </div>
 
-      <!-- Правая колонка параметров (4 колонки) -->
       <div class="lg:col-span-4 flex flex-col gap-6">
         
         <div class="glass-panel rounded-2xl p-5 shadow-xl space-y-5">
@@ -357,7 +415,6 @@ export default {
             Параметры системы
           </h2>
 
-          <!-- Длина нити или Жесткость -->
           <div v-if="mode === 'math'" class="space-y-2">
             <div class="flex justify-between items-baseline">
               <label class="text-sm font-medium text-slate-200">Длина нити <span class="font-mono text-sky-400">L</span></label>
@@ -374,7 +431,6 @@ export default {
             <input type="range" min="10" max="100" step="5" v-model.number="stiffness" @input="reset" />
           </div>
 
-          <!-- Масса -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
             <div class="flex justify-between items-baseline">
               <label class="text-sm font-medium text-slate-200">Масса груза <span class="font-mono text-sky-400">m</span></label>
@@ -383,7 +439,6 @@ export default {
             <input type="range" min="0.2" max="5.0" step="0.2" v-model.number="mass" @input="reset" />
           </div>
 
-          <!-- Амплитуда -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
             <div class="flex justify-between items-baseline">
               <label class="text-sm font-medium text-slate-200">
@@ -406,7 +461,6 @@ export default {
           </div>
         </div>
 
-        <!-- Дашборд расчетов -->
         <div class="glass-panel rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between space-y-4">
           <div>
             <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5">
@@ -441,7 +495,7 @@ export default {
           </div>
 
           <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1">
-            <span class="font-semibold text-slate-200 block">Закон сохранения механической энергии:</span>
+            <span class="font-semibold text-slate-200 block">Закон сохранения энергии:</span>
             В точках максимального отклонения скорость равна нулю (<span class="font-mono text-emerald-400">Ek = 0</span>, <span class="font-mono text-slate-200">Ep = max</span>), а в точке равновесия потенциальная энергия полностью переходит в кинетическую.
           </div>
         </div>

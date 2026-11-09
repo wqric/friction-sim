@@ -1,61 +1,109 @@
-/* Base Dark Engineering Theme & Layout Stabilizers */
-body {
-    background-color: #090d16;
-    color: #e2e8f0;
-    overflow-x: hidden;
-    margin: 0;
-    padding: 0;
+/* Base Theme & Responsive Glassmorphism */
+:root {
+  --color-primary: #38bdf8;
+  --color-surface: rgba(15, 23, 42, 0.85);
+  --color-border: rgba(51, 65, 85, 0.7);
+}
+
+html, body {
+  background-color: #090d16;
+  color: #e2e8f0;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
 }
 
 /* Glassmorphism Panels */
 .glass-panel {
-    background: rgba(15, 23, 42, 0.75);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(51, 65, 85, 0.6);
+  background: var(--color-surface);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
 }
 
-/* Fix Canvas Rendering Distortion */
+/* Canvas Display Stability: Prevents squishing and stretching */
+.canvas-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 320px;
+  background-color: rgba(2, 6, 23, 0.90);
+  border: 1px solid rgba(51, 65, 85, 0.7);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 canvas {
-    display: block;
-    width: 100% !important;
-    height: 100% !important;
-    touch-action: none; /* Запрещает скролл страницы при перетаскивании маркеров на мобильных устройствах */
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none;
 }
 
-/* Custom Interactive Sliders */
+/* Responsive safety */
+.min-w-0 {
+  min-width: 0 !important;
+}
+
+/* Range input styled cleanly */
 input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    background: transparent;
-    cursor: pointer;
-    width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
-    background: #1e293b;
-    height: 8px;
-    border-radius: 4px;
-    border: 1px solid #334155;
+  background: #1e293b;
+  height: 6px;
+  border-radius: 4px;
+  border: 1px solid #334155;
 }
 
 input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    margin-top: -5px;
-    background-color: #38bdf8;
-    height: 16px;
-    width: 16px;
-    border-radius: 50%;
-    box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
-    transition: transform 0.15s ease, background-color 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -5px;
+  background-color: #38bdf8;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  border: 2px solid #0f172a;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
-    transform: scale(1.2);
-    background-color: #7dd3fc;
+  transform: scale(1.2);
+  background-color: #7dd3fc;
 }
 
 input[type="range"]:focus {
-    outline: none;
+  outline: none;
+}
+
+/* Meter Progress Bar Animation */
+.energy-bar-fill {
+  transition: width 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #090d16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
 }

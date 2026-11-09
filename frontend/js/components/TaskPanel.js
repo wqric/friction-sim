@@ -65,7 +65,7 @@ export default {
   },
   template: `
     <div class="glass-panel rounded-2xl p-5 shadow-xl mt-6 space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
         <div>
           <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-200">
             Практикум: контрольные задачи с автопроверкой
@@ -83,7 +83,7 @@ export default {
         Загрузка задач модуля...
       </div>
 
-      <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <div
           v-for="(task, index) in tasks"
           :key="task.id"
@@ -102,10 +102,10 @@ export default {
                 Задание {{ index + 1 }}
               </span>
               <span v-if="results[task.id]?.is_correct === true" class="text-emerald-400 text-xs font-mono font-bold">
-                ✓ Решено
+                ✓ Решено верно
               </span>
               <span v-else-if="results[task.id]?.is_correct === false" class="text-rose-400 text-xs font-mono font-bold">
-                ✕ Ошибка
+                ✕ Неверно
               </span>
             </div>
 
@@ -138,7 +138,7 @@ export default {
                 @keyup.enter="checkAnswer(task)"
                 class="w-full bg-slate-950/80 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-mono text-white placeholder-slate-500 focus:border-sky-500 transition"
               />
-              <span class="text-xs font-mono text-slate-400 w-10 shrink-0">{{ task.unit }}</span>
+              <span class="text-xs font-mono text-slate-400 w-12 shrink-0">{{ task.unit }}</span>
             </div>
 
             <button

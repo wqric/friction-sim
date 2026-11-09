@@ -27,26 +27,26 @@ export default {
     }
   },
   template: `
-    <div class="max-w-[1600px] mx-auto py-6 space-y-6">
-      <!-- Заголовок каталога -->
+    <div class="max-w-[1600px] mx-auto py-4 sm:py-6 space-y-6">
+      <!-- Баннер практикума -->
       <div class="glass-panel rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl relative overflow-hidden">
-        <div class="space-y-2 z-10 max-w-3xl">
+        <div class="space-y-2.5 z-10 max-w-3xl">
           <div class="flex items-center gap-2">
-            <span class="text-xs font-semibold uppercase tracking-wider text-sky-400 font-mono">Виртуальная лаборатория</span>
-            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-mono">
-              7 симуляций
+            <span class="text-xs font-semibold uppercase tracking-wider text-sky-400 font-mono">Академический комплекс</span>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono">
+              7 интерактивных симуляций
             </span>
           </div>
           <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-            Интерактивный физический практикум
+            Интерактивные физические лаборатории
           </h1>
-          <p class="text-sm text-slate-300 leading-relaxed">
-            Полнофункциональные компьютерные модели физических явлений в реальном времени. Векторные диаграммы сил, сопряжённые аналитические графики с интерактивным перетаскиванием параметров и встроенные расчётные задачи с автопроверкой.
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+            Полнофункциональные математические модели физических законов с динамическим просчётом векторов сил, сопряжёнными графиками зависимостей в реальном времени и встроенным банком задач с автопроверкой численного ответа.
           </p>
         </div>
 
-        <!-- Переключатели разделов -->
-        <div class="flex flex-wrap gap-2 z-10">
+        <!-- Переключатели категорий -->
+        <div class="flex flex-wrap gap-2 z-10 shrink-0">
           <button
             v-for="cat in categories"
             :key="cat.id"
@@ -69,7 +69,7 @@ export default {
           v-for="topic in filteredTopics"
           :key="topic.id"
           @click="$emit('select-lab', topic.id)"
-          class="glass-panel rounded-2xl p-5 cursor-pointer flex flex-col justify-between group hover:border-sky-500/60 hover:shadow-2xl hover:shadow-sky-500/10 transition-all duration-300"
+          class="glass-panel rounded-2xl p-5 cursor-pointer flex flex-col justify-between group hover:border-sky-500/60 hover:shadow-2xl hover:shadow-sky-500/15 transition-all duration-300"
         >
           <div>
             <div class="flex items-center justify-between gap-2 mb-3">
@@ -83,7 +83,7 @@ export default {
               {{ topic.title }}
             </h2>
 
-            <p class="text-xs text-slate-400 mt-2.5 leading-relaxed line-clamp-3">
+            <p class="text-xs text-slate-400 mt-2.5 leading-relaxed">
               {{ topic.description }}
             </p>
           </div>
