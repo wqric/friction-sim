@@ -1,0 +1,89 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+      - name: Deploy to Server via SSH
+        run: |
+          ssh -o StrictHostKeyChecking=no root@31.77.199.133 'bash -s' << 'EOF'
+            set -e
+            APP_DIR="/opt/friction-sim"
+
+            # Create folder if needed
+            mkdir -p $APP_DIR
+
+            # Clone or pull repo
+            if [ -d "$APP_DIR/.git" ]; then
+              cd $APP_DIR
+              git fetch origin main
+              git reset --hard origin/main
+            else
+              git clone https://github.com/wqric/friction-sim.git $APP_DIR
+              cd $APP_DIR
+            fi
+
+            # Install dependencies in virtualenv
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+            # Setup systemd service
+            cat << 'SERVICE' > /etc/systemd/system/physlab.service
+          [Unit]
+          Description=PhysLab FastAPI Service
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=/opt/friction-sim
+          ExecStart=/opt/friction-sim/venv/bin/uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE
+
+            systemctl daemon-reload
+            systemctl enable physlab
+            systemctl restart physlab
+
+            # Setup Nginx configuration on port 8085
+            cat << 'NGINX' > /etc/nginx/conf.d/physlab.conf
+          server {
+              listen 8085;
+              server_name _;
+
+              location / {
+                  proxy_pass http://127.0.0.1:8000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+              }
+          }
+          NGINX
+
+            nginx -t && systemctl reload nginx
+            echo "PhysLab successfully deployed and running!"
+          EOF
