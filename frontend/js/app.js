@@ -32,7 +32,6 @@ const app = createApp({
     }
   },
   async mounted() {
-    // Read route from URL hash
     this.handleHashChange();
     window.addEventListener('hashchange', this.handleHashChange);
 
@@ -65,7 +64,7 @@ const app = createApp({
     }
   },
   template: `
-    <div class="min-h-screen flex flex-col bg-[#0a0d14] text-slate-100">
+    <div class="min-h-screen flex flex-col bg-[#0b0d14] text-[#eef0f5]">
       <Navbar
         :active-lab="activeLab"
         :topics="topics"
@@ -73,7 +72,7 @@ const app = createApp({
         @go-home="goHome"
       />
 
-      <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+      <main class="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6">
         <!-- Catalog View -->
         <LabCatalog
           v-if="!activeLab"
@@ -82,18 +81,20 @@ const app = createApp({
         />
 
         <!-- Active Simulation Lab View -->
-        <div v-else class="space-y-6">
+        <div v-else class="space-y-4">
           <!-- Lab Header -->
-          <div class="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
             <div>
               <div class="flex items-center gap-2">
-                <span class="text-[11px] font-mono text-sky-400 uppercase tracking-wider">{{ currentTopic?.section }}</span>
-                <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Лаборатория</span>
+                <span class="text-[11px] font-mono text-[#7a8296]">{{ currentTopic?.section }}</span>
+                <span class="text-[11px] font-mono text-[#a3a9b8] px-1.5 py-0.2 rounded-[2px] bg-[#181d28] border border-white/[0.06]">
+                  {{ currentTopic?.badge }}
+                </span>
               </div>
-              <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white mt-1">
+              <h1 class="text-lg font-medium text-[#eef0f5] mt-1">
                 {{ currentTopic?.title }}
               </h1>
-              <p class="text-xs text-slate-400 mt-1">
+              <p class="text-xs text-[#a3a9b8] mt-0.5">
                 {{ currentTopic?.description }}
               </p>
             </div>
@@ -112,8 +113,8 @@ const app = createApp({
         </div>
       </main>
 
-      <footer class="hairline-t bg-[#0e121b] py-6 text-center text-xs text-slate-400 font-mono">
-        PhysLab &bull; Интерактивная платформа обучения физике &bull; FastAPI + Vue 3
+      <footer class="border-t border-white/[0.08] bg-[#07080d] py-5 text-center text-xs text-[#7a8296] font-mono">
+        PhysLab &bull; Физическая лаборатория механики &bull; СИ
       </footer>
     </div>
   `

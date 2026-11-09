@@ -1,59 +1,59 @@
-/* Unslop Design System: Dark Engineering Theme */
+/* Unslop Design System: Technical Laboratory (Ink Ramp) */
 :root {
-  --bg-primary: #0a0d14;
-  --bg-panel: #111520;
-  --bg-card: #151a27;
-  --bg-input: #1b2132;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent-cyan: #38bdf8;
-  --accent-emerald: #34d399;
-  --accent-amber: #fbbf24;
-  --accent-rose: #f43f5e;
+  /* Ink ramp neutrals */
+  --bg-deep: #07080d;
+  --bg-page: #0b0d14;
+  --bg-card: #11141c;
+  --bg-raised: #181d28;
+  --bg-hover: #1f2533;
+
+  /* Hairlines (primary text at 8% and 14%) */
+  --hairline-subtle: rgba(238, 240, 245, 0.08);
+  --hairline-hover: rgba(238, 240, 245, 0.16);
+
+  /* Precise text roles */
+  --text-primary: #eef0f5;
+  --text-secondary: #a3a9b8;
+  --text-muted: #7a8296;
+
+  /* Single restrained accent */
+  --accent: #38bdf8;
+  --accent-soft: rgba(56, 189, 248, 0.12);
+  --accent-border: rgba(56, 189, 248, 0.3);
+
+  /* Semantic status indicators */
+  --status-active: #34d399;
+  --status-warning: #fbbf24;
+  --status-error: #f43f5e;
 }
 
 body {
-  background-color: var(--bg-primary);
+  background-color: var(--bg-page);
   color: var(--text-primary);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  letter-spacing: -0.011em;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Hairline border utilities */
-.hairline {
-  border: 1px solid var(--border-subtle);
-}
-
-.hairline-b {
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.hairline-t {
-  border-top: 1px solid var(--border-subtle);
-}
-
-/* Engineering panel */
 .lab-panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--hairline-subtle);
+  border-radius: 6px;
 }
 
 .lab-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-card);
+  border: 1px solid var(--hairline-subtle);
   border-radius: 6px;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .lab-card:hover {
-  border-color: var(--border-strong);
+  border-color: var(--hairline-hover);
+  background-color: var(--bg-raised);
 }
 
-/* Range input styled cleanly */
+/* Clean industrial range slider */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -63,24 +63,56 @@ input[type="range"] {
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
-  background: #1e2638;
+  background: var(--bg-raised);
   height: 4px;
   border-radius: 2px;
+  border: 1px solid var(--hairline-subtle);
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   margin-top: -6px;
-  background-color: var(--accent-cyan);
-  height: 16px;
-  width: 16px;
-  border-radius: 50%;
-  border: 2px solid var(--bg-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  background-color: var(--text-primary);
+  height: 14px;
+  width: 14px;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--bg-deep);
+  transition: transform 0.1s ease;
 }
 
-/* Subtle focus state */
-input:focus, button:focus {
-  outline: none;
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  background-color: #ffffff;
+}
+
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-primary {
+  background-color: #f1f5f9;
+  color: #0b0d14;
+  font-weight: 500;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: opacity 0.1s ease;
+}
+
+.btn-primary:hover {
+  opacity: 0.92;
+}
+
+.btn-secondary {
+  background-color: var(--bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--hairline-subtle);
+  border-radius: 4px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--hairline-hover);
 }
