@@ -6,6 +6,7 @@ export default {
       mu: 0.40,
       mass: 2.0,
       g: 9.81,
+
       isAnimationEnabled: true,
       autoLoop: true,
       showProjections: true,
@@ -13,7 +14,9 @@ export default {
       blockVelocity: 0,
       lastFrameTime: performance.now(),
       animationFrameId: null,
-      isDraggingGraph: false
+      isDraggingGraph: false,
+      isDraggingSlope: false,
+      isDraggingBlock: false
     };
   },
   computed: {
@@ -47,10 +50,12 @@ export default {
     }
   },
   mounted() {
-    this.resizeCanvases();
-    window.addEventListener('resize', this.resizeCanvases);
-    this.lastFrameTime = performance.now();
-    this.animate(this.lastFrameTime);
+    this.$nextTick(() => {
+      this.resizeCanvases();
+      window.addEventListener('resize', this.resizeCanvases);
+      this.lastFrameTime = performance.now();
+      this.animate(this.lastFrameTime);
+    });
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.resizeCanvases);
@@ -58,7 +63,8 @@ export default {
   },
   methods: {
     setCritAngle() {
-      this.alpha = Math.min(85, Math.round(this.physics.critAngleDeg * 2) / 2);
+      const crit = Math.min(85, Math.round(this.physics.critAngleDeg * 2) / 2);
+      this.alpha = crit;
       this.resetPos();
     },
     resetPos() {
@@ -71,15 +77,21 @@ export default {
       const graphCanvas = this.$refs.graphCanvas;
       if (!simCanvas || !graphCanvas) return;
 
-      const simRect = simCanvas.parentElement.getBoundingClientRect();
-      simCanvas.width = simRect.width * dpr;
-      simCanvas.height = simRect.height * dpr;
-      simCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      const simRect = simCanvas.getBoundingClientRect();
+      if (simRect.width > 0 && simRect.height > 0) {
+        simCanvas.width = simRect.width * dpr;
+        simCanvas.height = simRect.height * dpr;
+        const ctx1 = simCanvas.getContext('2d');
+        ctx1.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
 
-      const graphRect = graphCanvas.parentElement.getBoundingClientRect();
-      graphCanvas.width = graphRect.width * dpr;
-      graphCanvas.height = graphRect.height * dpr;
-      graphCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      const graphRect = graphCanvas.getBoundingClientRect();
+      if (graphRect.width > 0 && graphRect.height > 0) {
+        graphCanvas.width = graphRect.width * dpr;
+        graphCanvas.height = graphRect.height * dpr;
+        const ctx2 = graphCanvas.getContext('2d');
+        ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
     },
     drawVector(ctx, x1, y1, x2, y2, color, label, labelOffset = { x: 0, y: 0 }, dashed = false) {
       const dx = x2 - x1;
@@ -88,13 +100,13 @@ export default {
       if (len < 4) return;
 
       const angle = Math.atan2(dy, dx);
-      const headLen = Math.min(10, Math.max(6, len * 0.25));
+      const headLen = Math.min(11, Math.max(7, len * 0.25));
 
       ctx.save();
       ctx.strokeStyle = color;
       ctx.fillStyle = color;
-      ctx.lineWidth = dashed ? 1.5 : 2.2;
-      if (dashed) ctx.setLineDash([3, 3]);
+      ctx.lineWidth = dashed ? 1.8 : 2.6;
+      if (dashed) ctx.setLineDash([4, 4]);
 
       ctx.beginPath();
       ctx.moveTo(x1, y1);
@@ -110,12 +122,16 @@ export default {
       ctx.fill();
 
       if (label) {
-        ctx.font = "600 11px 'JetBrains Mono', monospace";
+        ctx.font = "600 12px 'JetBrains Mono', monospace";
+        const textMetrics = ctx.measureText(label);
         const tx = x2 + labelOffset.x;
         const ty = y2 + labelOffset.y;
-        ctx.fillStyle = "#0a0d14";
-        const w = ctx.measureText(label).width;
-        ctx.fillRect(tx - 3, ty - 10, w + 6, 14);
+
+        ctx.fillStyle = "rgba(9, 13, 22, 0.85)";
+        ctx.beginPath();
+        ctx.roundRect(tx - 4, ty - 11, textMetrics.width + 8, 16, 4);
+        ctx.fill();
+
         ctx.fillStyle = color;
         ctx.fillText(label, tx, ty + 1);
       }
@@ -131,31 +147,37 @@ export default {
 
       ctx.clearRect(0, 0, w, h);
 
-      // Grid
+      // Инженерная сетка
       ctx.save();
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+      ctx.strokeStyle = "rgba(30, 41, 59, 0.45)";
       ctx.lineWidth = 1;
-      for (let x = 0; x < w; x += 28) {
+      const gridSize = 30;
+      for (let x = 0; x < w; x += gridSize) {
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
       }
-      for (let y = 0; y < h; y += 28) {
+      for (let y = 0; y < h; y += gridSize) {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
       }
       ctx.restore();
 
-      // Plane geometry
-      const pivotX = Math.max(140, w * 0.22);
-      const pivotY = h - 50;
-      const planeLen = Math.min(w - pivotX - 40, h - 80, 380);
+      // Геометрия наклонной плоскости
+      const pivotX = Math.max(160, w * 0.24);
+      const pivotY = h - 55;
+      const planeLen = Math.min(w - pivotX - 50, h - 85, 380);
+
       const alpha = phys.alphaRad;
       const topX = pivotX + planeLen * Math.cos(alpha);
       const topY = pivotY - planeLen * Math.sin(alpha);
 
-      // Wedge
+      // Клин
       ctx.save();
-      ctx.fillStyle = "#111520";
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
-      ctx.lineWidth = 1.5;
+      const grad = ctx.createLinearGradient(pivotX, topY, topX, pivotY);
+      grad.addColorStop(0, "rgba(30, 41, 59, 0.7)");
+      grad.addColorStop(1, "rgba(15, 23, 42, 0.9)");
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = "#475569";
+      ctx.lineWidth = 2;
+
       ctx.beginPath();
       ctx.moveTo(pivotX, pivotY);
       ctx.lineTo(topX, topY);
@@ -164,52 +186,75 @@ export default {
       ctx.fill();
       ctx.stroke();
 
-      // Floor
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+      // Пол
+      ctx.strokeStyle = "#64748b";
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(pivotX - 80, pivotY);
-      ctx.lineTo(w - 20, pivotY);
+      ctx.moveTo(pivotX - 90, pivotY);
+      ctx.lineTo(w - 25, pivotY);
       ctx.stroke();
 
-      // Slope line
+      // Рабочая поверхность
       ctx.strokeStyle = "#38bdf8";
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 3.5;
       ctx.beginPath();
       ctx.moveTo(pivotX, pivotY);
       ctx.lineTo(topX, topY);
       ctx.stroke();
 
-      // Roughness hatch
-      ctx.strokeStyle = "rgba(56, 189, 248, 0.25)";
-      ctx.lineWidth = 1;
-      const step = Math.max(6, 16 - this.mu * 8);
+      // Штриховка шероховатости (μ)
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.35)";
+      ctx.lineWidth = 1.5;
+      const step = Math.max(5, 18 - this.mu * 10);
       for (let d = 8; d < planeLen - 8; d += step) {
         const sx = pivotX + d * Math.cos(alpha);
         const sy = pivotY - d * Math.sin(alpha);
         ctx.beginPath();
         ctx.moveTo(sx, sy);
-        ctx.lineTo(sx + 4 * Math.sin(alpha) - 3 * Math.cos(alpha), sy + 4 * Math.cos(alpha) + 3 * Math.sin(alpha));
+        ctx.lineTo(sx + 5 * Math.sin(alpha) - 4 * Math.cos(alpha), sy + 5 * Math.cos(alpha) + 4 * Math.sin(alpha));
         ctx.stroke();
       }
 
-      // Angle arc
+      // Интерактивная ручка изменения угла на вершине клина (drag handle)
+      ctx.fillStyle = "#38bdf8";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(topX, topY, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Дуга угла α
       if (this.alpha > 1) {
+        const arcRadius = 48;
         ctx.strokeStyle = "#38bdf8";
-        ctx.lineWidth = 1.5;
+        ctx.fillStyle = "rgba(56, 189, 248, 0.12)";
+        ctx.lineWidth = 1.8;
+
         ctx.beginPath();
-        ctx.arc(pivotX, pivotY, 40, -alpha, 0, false);
+        ctx.moveTo(pivotX, pivotY);
+        ctx.arc(pivotX, pivotY, arcRadius, -alpha, 0, false);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(pivotX, pivotY, arcRadius, -alpha, 0, false);
         ctx.stroke();
+
+        const labelAngle = -alpha / 2;
+        const lx = pivotX + (arcRadius + 22) * Math.cos(labelAngle);
+        const ly = pivotY + (arcRadius + 22) * Math.sin(labelAngle);
         ctx.fillStyle = "#38bdf8";
-        ctx.font = "600 11px 'JetBrains Mono', monospace";
-        ctx.fillText(`α=${this.alpha.toFixed(1)}°`, pivotX + 48, pivotY - 12);
+        ctx.font = "600 12px 'JetBrains Mono', monospace";
+        ctx.fillText(`α=${this.alpha.toFixed(1)}°`, lx - 10, ly + 4);
       }
       ctx.restore();
 
-      // Block
-      const blockW = 60;
-      const blockH = 36;
+      // Брусок
+      const blockW = 64;
+      const blockH = 40;
       const startDist = planeLen * 0.7;
-      const pxOffset = this.blockOffset * 60;
+      const pxOffset = this.blockOffset * 55;
       const minDist = blockW * 0.7;
       let curDist = startDist - pxOffset;
 
@@ -234,49 +279,94 @@ export default {
       ctx.save();
       ctx.translate(cmX, cmY);
       ctx.rotate(-alpha);
-      ctx.fillStyle = phys.isSliding ? "#b45309" : "#1e3a8a";
-      ctx.strokeStyle = phys.isSliding ? "#f59e0b" : "#38bdf8";
-      ctx.lineWidth = 1.5;
+
+      const blockGrad = ctx.createLinearGradient(-blockW / 2, -blockH / 2, blockW / 2, blockH / 2);
+      if (phys.isSliding) {
+        blockGrad.addColorStop(0, "#f59e0b");
+        blockGrad.addColorStop(1, "#b45309");
+        ctx.strokeStyle = "#fde68a";
+      } else {
+        blockGrad.addColorStop(0, "#0284c7");
+        blockGrad.addColorStop(1, "#1e3a8a");
+        ctx.strokeStyle = "#7dd3fc";
+      }
+
+      ctx.fillStyle = blockGrad;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.roundRect(-blockW / 2, -blockH / 2, blockW, blockH, 4);
+      ctx.roundRect(-blockW / 2, -blockH / 2, blockW, blockH, 6);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = "#f8fafc";
-      ctx.font = "600 10px 'JetBrains Mono', monospace";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.font = "600 11px 'JetBrains Mono', monospace";
       ctx.textAlign = "center";
-      ctx.fillText(`${this.mass}kg`, 0, 4);
+      ctx.fillText(`m=${this.mass.toFixed(1)}кг`, 0, -4);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(0, 5, 3, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
 
-      // Vectors
-      const vScale = 90 / Math.max(phys.mg, 1);
-      const downX = -Math.cos(alpha);
-      const downY = Math.sin(alpha);
-      const upX = Math.cos(alpha);
-      const upY = -Math.sin(alpha);
-      const intoX = Math.sin(alpha);
-      const intoY = Math.cos(alpha);
+      // Векторы сил
+      const vectorScale = 105 / Math.max(phys.mg, 1);
+      const downSlopeX = -Math.cos(alpha);
+      const downSlopeY = Math.sin(alpha);
+      const upSlopeX = Math.cos(alpha);
+      const upSlopeY = -Math.sin(alpha);
+      const intoSlopeX = Math.sin(alpha);
+      const intoSlopeY = Math.cos(alpha);
 
-      const mgLen = phys.mg * vScale;
-      const pullLen = phys.fPull * vScale;
-      const normLen = phys.fNormal * vScale;
-      const fricLen = phys.fFriction * vScale;
+      const mgLen = phys.mg * vectorScale;
+      const pullLen = phys.fPull * vectorScale;
+      const normLen = phys.fNormal * vectorScale;
+      const fricLen = phys.fFriction * vectorScale;
+
+      const mgEndX = cmX;
+      const mgEndY = cmY + mgLen;
+      const pullEndX = cmX + downSlopeX * pullLen;
+      const pullEndY = cmY + downSlopeY * pullLen;
+      const cosEndX = cmX + intoSlopeX * normLen;
+      const cosEndY = cmY + intoSlopeY * normLen;
 
       if (this.showProjections && this.alpha > 0.5) {
-        this.drawVector(ctx, cmX, cmY, cmX + intoX * normLen, cmY + intoY * normLen, "#c084fc", "mg·cosα", { x: 6, y: 10 }, true);
-        this.drawVector(ctx, cmX, cmY, cmX + downX * pullLen, cmY + downY * pullLen, "#fbbf24", "mg·sinα", { x: -50, y: 12 }, false);
+        ctx.save();
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(pullEndX, pullEndY);
+        ctx.lineTo(mgEndX, mgEndY);
+        ctx.lineTo(cosEndX, cosEndY);
+        ctx.stroke();
+        ctx.restore();
+
+        this.drawVector(ctx, cmX, cmY, cosEndX, cosEndY, "#c084fc", "mg·cosα", { x: 8, y: 12 }, true);
+        this.drawVector(ctx, cmX, cmY, pullEndX, pullEndY, "#fbbf24", "mg·sinα", { x: -62, y: 14 }, false);
       }
 
-      this.drawVector(ctx, cmX, cmY, cmX, cmY + mgLen, "#38bdf8", "mg", { x: -24, y: 12 }, false);
-      this.drawVector(ctx, cmX, cmY, cmX + normX * normLen, cmY + normY * normLen, "#34d399", "N", { x: -18, y: -6 }, false);
+      this.drawVector(ctx, cmX, cmY, mgEndX, mgEndY, "#38bdf8", "mg", { x: -28, y: 14 }, false);
 
+      const nEndX = cmX + normX * normLen;
+      const nEndY = cmY + normY * normLen;
+      this.drawVector(ctx, cmX, cmY, nEndX, nEndY, "#34d399", "N", { x: -24, y: -8 }, false);
+
+      const fricStartX = cmX - normX * (blockH * 0.28);
+      const fricStartY = cmY - normY * (blockH * 0.28);
+      const fricEndX = fricStartX + upSlopeX * fricLen;
+      const fricEndY = fricStartY + upSlopeY * fricLen;
       if (phys.fFriction > 0.05) {
-        this.drawVector(ctx, cmX, cmY, cmX + upX * fricLen, cmY + upY * fricLen, "#f43f5e", "F_тр", { x: 6, y: -6 }, false);
+        this.drawVector(ctx, fricStartX, fricStartY, fricEndX, fricEndY, "#f43f5e", "F_тр", { x: 6, y: -8 }, false);
       }
 
       if (phys.isSliding && phys.accel > 0.05) {
-        const aLen = Math.min(60, phys.accel * 5);
-        this.drawVector(ctx, cmX + normX * 30, cmY + normY * 30, cmX + normX * 30 + downX * aLen, cmY + normY * 30 + downY * aLen, "#818cf8", `a=${phys.accel.toFixed(1)}`, { x: -30, y: -8 }, false);
+        const accStartX = cmX + normX * (blockH * 0.95);
+        const accStartY = cmY + normY * (blockH * 0.95);
+        const accLen = Math.min(80, Math.max(24, phys.accel * 6));
+        const accEndX = accStartX + downSlopeX * accLen;
+        const accEndY = accStartY + downSlopeY * accLen;
+        this.drawVector(ctx, accStartX, accStartY, accEndX, accEndY, "#818cf8", `a=${phys.accel.toFixed(1)}м/с²`, { x: -45, y: -10 }, false);
       }
     },
     renderGraph() {
@@ -289,91 +379,232 @@ export default {
 
       ctx.clearRect(0, 0, w, h);
 
-      const padL = 44, padR = 20, padT = 20, padB = 30;
-      const pW = w - padL - padR;
-      const pH = h - padT - padB;
-      const maxF = Math.max(phys.mg * 1.05, phys.mg * this.mu * 1.05, 10);
+      const padLeft = 52, padRight = 24, padTop = 24, padBottom = 38;
+      const plotW = w - padLeft - padRight;
+      const plotH = h - padTop - padBottom;
+      const maxForceY = Math.max(phys.mg * 1.05, phys.mg * this.mu * 1.08, 10);
 
-      const degX = (deg) => padL + (deg / 90) * pW;
-      const fY = (f) => padT + pH - (f / maxF) * pH;
+      const degToX = (deg) => padLeft + (deg / 90) * plotW;
+      const forceToY = (f) => padTop + plotH - (f / maxForceY) * plotH;
 
-      // Zones
-      const critX = degX(Math.min(90, phys.critAngleDeg));
-      ctx.fillStyle = "rgba(52, 211, 153, 0.04)";
-      ctx.fillRect(padL, padT, critX - padL, pH);
-      ctx.fillStyle = "rgba(251, 191, 36, 0.04)";
-      ctx.fillRect(critX, padT, padL + pW - critX, pH);
+      const critX = degToX(Math.min(90, phys.critAngleDeg));
 
-      // Axes & grid
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+      ctx.save();
+      ctx.fillStyle = "rgba(16, 185, 129, 0.05)";
+      ctx.fillRect(padLeft, padTop, critX - padLeft, plotH);
+      ctx.fillStyle = "rgba(245, 158, 11, 0.05)";
+      ctx.fillRect(critX, padTop, padLeft + plotW - critX, plotH);
+
+      // Сетка
+      ctx.strokeStyle = "rgba(51, 65, 85, 0.5)";
       ctx.lineWidth = 1;
-      ctx.font = "500 10px 'JetBrains Mono', monospace";
+      ctx.font = "500 11px 'JetBrains Mono', monospace";
       ctx.fillStyle = "#64748b";
 
       for (let deg = 0; deg <= 90; deg += 15) {
-        const x = degX(deg);
-        ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + pH); ctx.stroke();
+        const x = degToX(deg);
+        ctx.beginPath(); ctx.moveTo(x, padTop); ctx.lineTo(x, padTop + plotH); ctx.stroke();
         ctx.textAlign = "center";
-        ctx.fillText(`${deg}°`, x, padT + pH + 15);
+        ctx.fillText(`${deg}°`, x, padTop + plotH + 18);
       }
 
-      for (let i = 0; i <= 4; i++) {
-        const val = (maxF / 4) * i;
-        const y = fY(val);
-        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + pW, y); ctx.stroke();
+      const ySteps = 4;
+      for (let i = 0; i <= ySteps; i++) {
+        const fVal = (maxForceY / ySteps) * i;
+        const y = forceToY(fVal);
+        ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(padLeft + plotW, y); ctx.stroke();
         ctx.textAlign = "right";
-        ctx.fillText(val.toFixed(0), padL - 6, y + 3);
+        ctx.fillText(fVal.toFixed(0), padLeft - 8, y + 4);
       }
 
-      // F_тр curve
-      ctx.strokeStyle = "#f43f5e";
-      ctx.lineWidth = 2.5;
+      ctx.fillStyle = "#94a3b8";
+      ctx.textAlign = "left";
+      ctx.fillText("F_тр (Н)", 10, padTop - 8);
+      ctx.textAlign = "right";
+      ctx.fillText("Угол α (град.)", padLeft + plotW, padTop + plotH + 32);
+
+      // Полные кривые sin и cos (пунктир)
+      ctx.strokeStyle = "rgba(251, 191, 36, 0.4)";
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([5, 5]);
       ctx.beginPath();
-      for (let deg = 0; deg <= 90; deg += 0.5) {
+      for (let deg = 0; deg <= 90; deg += 1) {
         const rad = (deg * Math.PI) / 180;
-        const f = deg <= phys.critAngleDeg ? phys.mg * Math.sin(rad) : this.mu * phys.mg * Math.cos(rad);
-        const x = degX(deg);
-        const y = fY(f);
+        const f = phys.mg * Math.sin(rad);
+        const x = degToX(deg);
+        const y = forceToY(f);
         if (deg === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
       ctx.stroke();
 
-      // Current point
-      const curX = degX(this.alpha);
-      const curY = fY(phys.fFriction);
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.4)";
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      for (let deg = 0; deg <= 90; deg += 1) {
+        const rad = (deg * Math.PI) / 180;
+        const f = this.mu * phys.mg * Math.cos(rad);
+        const x = degToX(deg);
+        const y = forceToY(f);
+        if (deg === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Линия α_кр
+      const critForcePeak = phys.mg * Math.sin(phys.critAngleRad);
+      const critY = forceToY(critForcePeak);
+      ctx.strokeStyle = "rgba(244, 63, 94, 0.65)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(critX, padTop);
+      ctx.lineTo(critX, padTop + plotH);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#fda4af";
+      ctx.font = "600 11px 'JetBrains Mono', monospace";
+      ctx.textAlign = critX > padLeft + plotW - 85 ? "right" : "left";
+      ctx.fillText(`α_кр=${phys.critAngleDeg.toFixed(1)}°`, critX + (critX > padLeft + plotW - 85 ? -6 : 6), padTop + plotH - 8);
+
+      // Реальная кривая силы трения
+      ctx.strokeStyle = "#f43f5e";
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      for (let deg = 0; deg <= 90; deg += 0.5) {
+        const rad = (deg * Math.PI) / 180;
+        const f = deg <= phys.critAngleDeg ? phys.mg * Math.sin(rad) : this.mu * phys.mg * Math.cos(rad);
+        const x = degToX(deg);
+        const y = forceToY(f);
+        if (deg === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Точка пика
+      ctx.fillStyle = "#fb7185";
+      ctx.beginPath(); ctx.arc(critX, critY, 4, 0, Math.PI * 2); ctx.fill();
+
+      // Маркер текущей точки
+      const curX = degToX(this.alpha);
+      const curY = forceToY(phys.fFriction);
+
+      ctx.fillStyle = "rgba(244, 63, 94, 0.3)";
+      ctx.beginPath(); ctx.arc(curX, curY, 11, 0, Math.PI * 2); ctx.fill();
 
       ctx.fillStyle = "#ffffff";
       ctx.strokeStyle = "#f43f5e";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(curX, curY, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(curX, curY, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+      // Бейдж
+      const badgeText = `${this.alpha.toFixed(1)}° | ${phys.fFriction.toFixed(2)} Н`;
+      ctx.font = "600 11px 'JetBrains Mono', monospace";
+      const textW = ctx.measureText(badgeText).width + 12;
+      let bx = curX + 10;
+      let by = curY - 26;
+      if (bx + textW > w - 10) bx = curX - textW - 10;
+      if (by < padTop) by = curY + 10;
+
+      ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+      ctx.strokeStyle = "rgba(244, 63, 94, 0.6)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(bx, by, textW, 20, 5); ctx.fill(); ctx.stroke();
+
+      ctx.fillStyle = "#f8fafc";
+      ctx.textAlign = "left";
+      ctx.fillText(badgeText, bx + 6, by + 14);
+      ctx.restore();
     },
+    // Прямой интерактивный драггинг мышью прямо на главном холсте (за верхушку горки)
+    onSimMouseDown(e) {
+      const canvas = this.$refs.simCanvas;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      const pivotX = Math.max(160, w * 0.24);
+      const pivotY = h - 55;
+
+      const dx = mx - pivotX;
+      const dy = pivotY - my;
+
+      if (dx > 20) {
+        let rad = Math.atan2(dy, dx);
+        let deg = (rad * 180) / Math.PI;
+        deg = Math.max(0, Math.min(85, deg));
+        this.alpha = Math.round(deg * 2) / 2;
+        this.isDraggingSlope = true;
+      }
+
+      window.addEventListener('mousemove', this.onSimMouseMove);
+      window.addEventListener('mouseup', this.onSimMouseUp);
+      window.addEventListener('touchmove', this.onSimMouseMove, { passive: false });
+      window.addEventListener('touchend', this.onSimMouseUp);
+    },
+    onSimMouseMove(e) {
+      if (!this.isDraggingSlope) return;
+      const canvas = this.$refs.simCanvas;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      const pivotX = Math.max(160, w * 0.24);
+      const pivotY = h - 55;
+
+      const dx = mx - pivotX;
+      const dy = pivotY - my;
+
+      if (dx > 10) {
+        let rad = Math.atan2(dy, dx);
+        let deg = (rad * 180) / Math.PI;
+        deg = Math.max(0, Math.min(85, deg));
+        this.alpha = Math.round(deg * 2) / 2;
+      }
+    },
+    onSimMouseUp() {
+      this.isDraggingSlope = false;
+      window.removeEventListener('mousemove', this.onSimMouseMove);
+      window.removeEventListener('mouseup', this.onSimMouseUp);
+      window.removeEventListener('touchmove', this.onSimMouseMove);
+      window.removeEventListener('touchend', this.onSimMouseUp);
+    },
+    // Драггинг на графике
     onGraphMouseDown(e) {
       this.isDraggingGraph = true;
-      this.updateAngleFromEvent(e);
+      this.updateAngleFromGraphEvent(e);
       window.addEventListener('mousemove', this.onGraphMouseMove);
       window.addEventListener('mouseup', this.onGraphMouseUp);
     },
     onGraphMouseMove(e) {
-      if (this.isDraggingGraph) this.updateAngleFromEvent(e);
+      if (this.isDraggingGraph) this.updateAngleFromGraphEvent(e);
     },
     onGraphMouseUp() {
       this.isDraggingGraph = false;
       window.removeEventListener('mousemove', this.onGraphMouseMove);
       window.removeEventListener('mouseup', this.onGraphMouseUp);
     },
-    updateAngleFromEvent(e) {
+    updateAngleFromGraphEvent(e) {
       const canvas = this.$refs.graphCanvas;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const x = clientX - rect.left;
-      const padL = 44, padR = 20;
-      const pW = rect.width - padL - padR;
-      let deg = ((x - padL) / pW) * 90;
+      const padLeft = 52, padRight = 24;
+      const plotW = rect.width - padLeft - padRight;
+      let deg = ((x - padLeft) / plotW) * 90;
       deg = Math.max(0, Math.min(85, deg));
       this.alpha = Math.round(deg * 2) / 2;
     },
@@ -394,142 +625,267 @@ export default {
     }
   },
   template: `
-    <div class="space-y-6">
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Main Simulation Visuals (8 cols) -->
-        <div class="lg:col-span-8 space-y-4">
-          <!-- Canvas 1: Setup -->
-          <div class="lab-panel p-4 flex flex-col">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Динамическая схема</span>
-                <span v-if="physics.isSliding" class="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                  Скольжение (α > α_кр)
-                </span>
-                <span v-else class="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Покой
-                </span>
-              </div>
-              <div class="flex items-center gap-2">
-                <button
-                  @click="isAnimationEnabled = !isAnimationEnabled"
-                  class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
-                >
-                  {{ isAnimationEnabled ? 'Пауза' : 'Пуск' }}
-                </button>
-                <button
-                  @click="resetPos"
-                  class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
-                >
-                  Сброс
-                </button>
-              </div>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Холст симуляции и Холст графика (8 колонок) -->
+      <div class="lg:col-span-8 flex flex-col gap-6">
+        
+        <!-- Холст 1: Схема наклонной плоскости -->
+        <div class="glass-panel rounded-2xl p-4 flex flex-col relative overflow-hidden shadow-xl">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 z-10">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Динамическая схема</span>
+              <span v-if="physics.isSliding" class="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                α > α_кр (Скольжение!)
+              </span>
+              <span v-else class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
+                Покой (F_тр = mg·sinα)
+              </span>
             </div>
-
-            <div class="w-full h-80 bg-[#080b11] rounded border border-white/5 relative overflow-hidden">
-              <canvas ref="simCanvas" class="w-full h-full block"></canvas>
+            
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                @click="isAnimationEnabled = !isAnimationEnabled"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5"
+              >
+                <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>{{ isAnimationEnabled ? 'Анимация: ВКЛ' : 'Зафиксировать' }}</span>
+              </button>
+              <button
+                @click="resetPos"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span>Сбросить позицию</span>
+              </button>
             </div>
           </div>
 
-          <!-- Canvas 2: Chart -->
-          <div class="lab-panel p-4">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">График зависимости F_тр(α)</span>
-              <span class="text-[11px] text-slate-500 font-mono">Кликните по графику для изменения угла</span>
+          <div class="relative w-full h-[360px] sm:h-[420px] bg-slate-950/70 rounded-xl border border-slate-800/80 overflow-hidden">
+            <canvas
+              ref="simCanvas"
+              class="w-full h-full block cursor-grab active:cursor-grabbing"
+              @mousedown="onSimMouseDown"
+              @touchstart.passive="onSimMouseDown"
+            ></canvas>
+
+            <!-- Легенда векторов -->
+            <div class="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-xl p-2.5 text-xs space-y-1.5 pointer-events-none shadow-lg">
+              <div class="font-semibold text-slate-300 mb-1 border-b border-slate-800 pb-1">Векторы сил:</div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-rose-500 inline-block"></span><span class="text-slate-300 font-mono">F_тр</span> <span class="text-slate-500">— трение</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-amber-400 inline-block"></span><span class="text-slate-300 font-mono">mg·sinα</span> <span class="text-slate-500">— скатывающая</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-emerald-400 inline-block"></span><span class="text-slate-300 font-mono">N</span> <span class="text-slate-500">— реакция опоры</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-purple-400 inline-block"></span><span class="text-slate-300 font-mono">mg·cosα</span> <span class="text-slate-500">— прижимающая</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-sky-400 inline-block"></span><span class="text-slate-300 font-mono">mg</span> <span class="text-slate-500">— сила тяжести</span></div>
             </div>
-            <div class="w-full h-56 bg-[#080b11] rounded border border-white/5 relative overflow-hidden">
-              <canvas
-                ref="graphCanvas"
-                class="w-full h-full block cursor-crosshair"
-                @mousedown="onGraphMouseDown"
-                @touchstart.passive="updateAngleFromEvent"
-              ></canvas>
+
+            <!-- Подсказка интерактива -->
+            <div class="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-lg px-2.5 py-1 text-[11px] font-mono text-sky-400 pointer-events-none">
+              💡 Перетаскивайте горку прямо на холсте
+            </div>
+
+            <div class="absolute bottom-3 left-3 flex flex-wrap gap-2">
+              <label class="flex items-center gap-1.5 bg-slate-900/85 border border-slate-800 px-2.5 py-1 rounded-lg text-xs text-slate-300 cursor-pointer hover:border-slate-700 transition">
+                <input type="checkbox" v-model="showProjections" class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0">
+                <span>Проекции mg</span>
+              </label>
+              <label class="flex items-center gap-1.5 bg-slate-900/85 border border-slate-800 px-2.5 py-1 rounded-lg text-xs text-slate-300 cursor-pointer hover:border-slate-700 transition">
+                <input type="checkbox" v-model="autoLoop" class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0">
+                <span>Автовозврат бруска</span>
+              </label>
             </div>
           </div>
         </div>
 
-        <!-- Controls & Dashboard (4 cols) -->
-        <div class="lg:col-span-4 space-y-4">
-          <!-- Controls -->
-          <div class="lab-panel p-4 space-y-4">
-            <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
-              <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Параметры</span>
-              <button
-                @click="setCritAngle"
-                class="text-[11px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/20 transition"
-              >
-                α = α_кр
-              </button>
+        <!-- Холст 2: График F_тр(α) -->
+        <div class="glass-panel rounded-2xl p-4 flex flex-col shadow-xl">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 block">График зависимости F_тр(α)</span>
+              <span class="text-xs text-slate-500">Вы можете кликать или перетаскивать маркер прямо по графику для изменения угла α</span>
             </div>
-
-            <!-- Alpha Slider -->
-            <div class="space-y-1.5">
-              <div class="flex justify-between text-xs">
-                <span class="text-slate-300 font-medium">Угол наклона α</span>
-                <span class="font-mono text-sky-400 font-semibold">{{ alpha.toFixed(1) }}°</span>
-              </div>
-              <input type="range" min="0" max="85" step="0.5" v-model.number="alpha" />
+            <div class="flex flex-wrap items-center gap-3 text-xs">
+              <span class="flex items-center gap-1.5 text-slate-300">
+                <span class="w-4 h-1 bg-rose-500 rounded inline-block"></span> Реальная F_тр(α)
+              </span>
+              <span class="flex items-center gap-1.5 text-slate-400">
+                <span class="w-4 border-b-2 border-dashed border-amber-400/70 inline-block"></span> mg·sin(α)
+              </span>
+              <span class="flex items-center gap-1.5 text-slate-400">
+                <span class="w-4 border-b-2 border-dashed border-sky-400/70 inline-block"></span> μ·mg·cos(α)
+              </span>
             </div>
+          </div>
 
-            <!-- Mu Slider -->
-            <div class="space-y-1.5 pt-2 border-t border-white/5">
-              <div class="flex justify-between text-xs">
-                <span class="text-slate-300 font-medium">Коэффициент трения μ</span>
-                <span class="font-mono text-sky-400 font-semibold">{{ mu.toFixed(2) }}</span>
-              </div>
-              <input type="range" min="0.05" max="1.0" step="0.01" v-model.number="mu" />
-              <div class="grid grid-cols-3 gap-1.5 pt-1">
+          <div class="relative w-full h-[270px] sm:h-[300px] bg-slate-950/70 rounded-xl border border-slate-800/80 overflow-hidden">
+            <canvas
+              ref="graphCanvas"
+              class="w-full h-full block cursor-crosshair"
+              @mousedown="onGraphMouseDown"
+              @touchstart.passive="updateAngleFromGraphEvent"
+            ></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Правая колонка: Управление и Дашборд расчетов (4 колонки) -->
+      <div class="lg:col-span-4 flex flex-col gap-6">
+        
+        <!-- Панель управления -->
+        <div class="glass-panel rounded-2xl p-5 shadow-xl space-y-5">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 flex items-center justify-between">
+            <span>Параметры системы</span>
+            <button
+              @click="setCritAngle"
+              class="text-xs font-mono normal-case px-2.5 py-1 rounded bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 transition"
+              title="Установить угол равным критическому"
+            >
+              Установить α = α_кр
+            </button>
+          </h2>
+
+          <!-- Угол α -->
+          <div class="space-y-2">
+            <div class="flex justify-between items-baseline">
+              <label class="text-sm font-medium text-slate-200">Угол наклона плоскости <span class="font-mono text-sky-400">α</span></label>
+              <span class="font-mono text-base font-bold text-sky-400">{{ alpha.toFixed(1) }}°</span>
+            </div>
+            <input type="range" min="0" max="85" step="0.5" v-model.number="alpha" />
+            <div class="flex justify-between text-[11px] font-mono text-slate-500">
+              <span>0°</span><span>30°</span><span>45°</span><span>60°</span><span>85°</span>
+            </div>
+          </div>
+
+          <!-- Коэффициент μ -->
+          <div class="space-y-2 pt-2 border-t border-slate-800/60">
+            <div class="flex justify-between items-baseline">
+              <label class="text-sm font-medium text-slate-200">Коэффициент трения <span class="font-mono text-sky-400">μ</span></label>
+              <span class="font-mono text-base font-bold text-sky-400">{{ mu.toFixed(2) }}</span>
+            </div>
+            <input type="range" min="0.05" max="1.20" step="0.01" v-model.number="mu" />
+
+            <div class="pt-1">
+              <span class="text-[11px] text-slate-400 block mb-1.5">Быстрые пресеты материалов:</span>
+              <div class="grid grid-cols-3 gap-1.5">
                 <button
-                  v-for="p in [{ l: 'Лёд', v: 0.1 }, { l: 'Дерево', v: 0.4 }, { l: 'Резина', v: 0.75 }]"
+                  v-for="p in [{ l: '❄️ Лёд', v: 0.10 }, { l: '🪵 Дерево', v: 0.40 }, { l: '🛞 Резина', v: 0.75 }]"
                   :key="p.l"
                   @click="mu = p.v"
                   :class="[
-                    'py-1 text-[11px] font-mono rounded border transition text-center',
-                    Math.abs(mu - p.v) < 0.01
-                      ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
-                      : 'bg-slate-900 border-white/5 text-slate-400 hover:text-slate-200'
+                    'px-2 py-1.5 rounded-lg text-xs transition text-center',
+                    Math.abs(mu - p.v) < 0.005
+                      ? 'bg-sky-950/80 hover:bg-sky-900/70 text-sky-200 border border-sky-500/40'
+                      : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 border border-slate-700/80'
                   ]"
                 >
-                  {{ p.l }} {{ p.v }}
+                  {{ p.l }} <span class="block font-mono text-[10px] text-sky-400">μ = {{ p.v.toFixed(2) }}</span>
                 </button>
               </div>
             </div>
+          </div>
 
-            <!-- Mass Slider -->
-            <div class="space-y-1.5 pt-2 border-t border-white/5">
-              <div class="flex justify-between text-xs">
-                <span class="text-slate-300 font-medium">Масса бруска m</span>
-                <span class="font-mono text-sky-400 font-semibold">{{ mass.toFixed(1) }} кг</span>
-              </div>
-              <input type="range" min="0.5" max="10.0" step="0.5" v-model.number="mass" />
+          <!-- Масса m -->
+          <div class="space-y-2 pt-2 border-t border-slate-800/60">
+            <div class="flex justify-between items-baseline">
+              <label class="text-sm font-medium text-slate-200">Масса бруска <span class="font-mono text-sky-400">m</span></label>
+              <span class="font-mono text-base font-bold text-sky-400">{{ mass.toFixed(1) }} кг</span>
+            </div>
+            <input type="range" min="0.5" max="10" step="0.5" v-model.number="mass" />
+            <div class="flex justify-between text-[11px] font-mono text-slate-500">
+              <span>0.5 кг</span><span>5.0 кг</span><span>10.0 кг</span>
             </div>
           </div>
 
-          <!-- Realtime metrics -->
-          <div class="lab-panel p-4 space-y-3">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-300 block border-b border-white/10 pb-2">
-              Расчетные величины
-            </span>
-            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div class="bg-slate-900/60 p-2.5 rounded border border-white/5">
-                <span class="text-[10px] text-slate-400 block">Критический угол</span>
-                <span class="text-sm font-semibold text-white">{{ physics.critAngleDeg.toFixed(2) }}°</span>
-              </div>
-              <div class="bg-rose-950/20 p-2.5 rounded border border-rose-500/20">
-                <span class="text-[10px] text-rose-300 block">Сила трения F_тр</span>
-                <span class="text-sm font-semibold text-rose-400">{{ physics.fFriction.toFixed(2) }} Н</span>
-              </div>
-              <div class="bg-slate-900/60 p-2.5 rounded border border-white/5">
-                <span class="text-[10px] text-slate-400 block">Скатывающая F_скат</span>
-                <span class="text-sm font-semibold text-amber-400">{{ physics.fPull.toFixed(2) }} Н</span>
-              </div>
-              <div class="bg-slate-900/60 p-2.5 rounded border border-white/5">
-                <span class="text-[10px] text-slate-400 block">Ускорение a</span>
-                <span class="text-sm font-semibold text-indigo-300">{{ physics.accel.toFixed(2) }} м/с²</span>
-              </div>
+          <!-- Ускорение g -->
+          <div class="space-y-2 pt-2 border-t border-slate-800/60">
+            <div class="flex justify-between items-baseline">
+              <label class="text-sm font-medium text-slate-200">Ускорение своб. падения <span class="font-mono text-sky-400">g</span></label>
+              <span class="font-mono text-base font-bold text-sky-400">{{ g.toFixed(2) }} м/с²</span>
+            </div>
+            <input type="range" min="1.6" max="24.8" step="0.01" v-model.number="g" />
+            <div class="grid grid-cols-4 gap-1 pt-1">
+              <button
+                v-for="pl in [{ n: 'Луна', v: 1.62 }, { n: 'Марс', v: 3.71 }, { n: 'Земля', v: 9.81 }, { n: 'Юпитер', v: 24.79 }]"
+                :key="pl.n"
+                @click="g = pl.v"
+                :class="[
+                  'px-1.5 py-1 rounded text-[11px] font-mono transition text-center border',
+                  Math.abs(g - pl.v) < 0.05 ? 'bg-sky-950 text-sky-300 border-sky-500/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                ]"
+              >
+                {{ pl.n }} ({{ pl.v }})
+              </button>
             </div>
           </div>
         </div>
+
+        <!-- Дашборд расчётных данных -->
+        <div class="glass-panel rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between space-y-4">
+          <div>
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5">
+              Расчётные данные в реальном времени
+            </h2>
+
+            <div class="grid grid-cols-2 gap-3 font-mono">
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
+                <span class="text-[11px] text-slate-400 block">Крит. угол α_кр</span>
+                <span class="text-lg font-bold text-white">{{ physics.critAngleDeg.toFixed(2) }}°</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">arctan(μ)</div>
+              </div>
+
+              <div class="bg-rose-950/30 border border-rose-500/30 rounded-xl p-3">
+                <span class="text-[11px] text-rose-300 block">Сила трения F_тр</span>
+                <span class="text-lg font-bold text-rose-400">{{ physics.fFriction.toFixed(2) }} Н</span>
+                <div class="text-[10px] text-rose-300/70 mt-0.5">{{ physics.isSliding ? '= μ·mg·cosα' : '= mg·sinα' }}</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
+                <span class="text-[11px] text-slate-400 block">Скатывающая F_скат</span>
+                <span class="text-base font-bold text-amber-400">{{ physics.fPull.toFixed(2) }} Н</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">mg·sin(α)</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
+                <span class="text-[11px] text-slate-400 block">Макс. трение покоя</span>
+                <span class="text-base font-bold text-sky-300">{{ physics.fMaxStatic.toFixed(2) }} Н</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">μ·mg·cos(α)</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
+                <span class="text-[11px] text-slate-400 block">Реакция опоры N</span>
+                <span class="text-base font-bold text-emerald-400">{{ physics.fNormal.toFixed(2) }} Н</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">mg·cos(α)</div>
+              </div>
+
+              <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3">
+                <span class="text-[11px] text-slate-400 block">Ускорение бруска</span>
+                <span class="text-base font-bold text-indigo-300">{{ physics.accel.toFixed(2) }} м/с²</span>
+                <div class="text-[10px] text-slate-500 mt-0.5">g·(sinα - μ·cosα)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1.5">
+            <div class="font-semibold text-slate-200 flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Физический смысл перегиба графика:
+            </div>
+            <p>
+              Пока <span class="text-emerald-400 font-mono">α ≤ arctan(μ)</span>, брусок покоится, и сила трения в точности равна скатывающей силе: <span class="font-mono text-slate-200">F_тр = mg·sinα</span>.
+            </p>
+            <p>
+              При <span class="text-amber-400 font-mono">α > arctan(μ)</span> начинается скольжение. Прижимающая сила уменьшается, поэтому сила трения начинает убывать: <span class="font-mono text-slate-200">F_тр = μ·mg·cosα</span>.
+            </p>
+          </div>
+        </div>
+
       </div>
     </div>
   `

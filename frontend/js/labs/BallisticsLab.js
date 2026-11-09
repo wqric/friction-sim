@@ -6,7 +6,6 @@ export default {
       alpha: 45.0,
       h0: 0.0,
       mass: 1.0,
-      airResistance: 0.00, // Сопротивление воздуха k
       g: 9.81,
 
       simTime: 0,
@@ -14,7 +13,8 @@ export default {
       history: [],
       lastTime: performance.now(),
       animationFrameId: null,
-      isDraggingGraph: false
+      isDraggingGraph: false,
+      isDraggingCannon: false
     };
   },
   computed: {
@@ -47,10 +47,12 @@ export default {
     }
   },
   mounted() {
-    this.resizeCanvases();
-    window.addEventListener('resize', this.resizeCanvases);
-    this.lastTime = performance.now();
-    this.animate(this.lastTime);
+    this.$nextTick(() => {
+      this.resizeCanvases();
+      window.addEventListener('resize', this.resizeCanvases);
+      this.lastTime = performance.now();
+      this.animate(this.lastTime);
+    });
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.resizeCanvases);
@@ -73,15 +75,19 @@ export default {
       const graphCanvas = this.$refs.graphCanvas;
       if (!simCanvas || !graphCanvas) return;
 
-      const simRect = simCanvas.parentElement.getBoundingClientRect();
-      simCanvas.width = simRect.width * dpr;
-      simCanvas.height = simRect.height * dpr;
-      simCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      const simRect = simCanvas.getBoundingClientRect();
+      if (simRect.width > 0 && simRect.height > 0) {
+        simCanvas.width = simRect.width * dpr;
+        simCanvas.height = simRect.height * dpr;
+        simCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
 
-      const graphRect = graphCanvas.parentElement.getBoundingClientRect();
-      graphCanvas.width = graphRect.width * dpr;
-      graphCanvas.height = graphRect.height * dpr;
-      graphCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      const graphRect = graphCanvas.getBoundingClientRect();
+      if (graphRect.width > 0 && graphRect.height > 0) {
+        graphCanvas.width = graphRect.width * dpr;
+        graphCanvas.height = graphRect.height * dpr;
+        graphCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
     },
     renderSimulation() {
       const canvas = this.$refs.simCanvas;
@@ -92,7 +98,7 @@ export default {
 
       ctx.clearRect(0, 0, w, h);
 
-      // Инженерная сетка
+      // Сетка
       ctx.save();
       ctx.strokeStyle = "rgba(30, 41, 59, 0.45)";
       ctx.lineWidth = 1;
@@ -132,31 +138,40 @@ export default {
       // Пушечное сопло
       const startX = originX;
       const startY = groundY - this.h0 * scaleY;
-      const barrelLen = 28;
+      const barrelLen = 34;
       const barrelEndX = startX + barrelLen * Math.cos(this.alphaRad);
       const barrelEndY = startY - barrelLen * Math.sin(this.alphaRad);
 
       ctx.strokeStyle = "#38bdf8";
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 7;
       ctx.beginPath();
       ctx.moveTo(startX, startY);
       ctx.lineTo(barrelEndX, barrelEndY);
+      ctx.stroke();
+
+      // Интерактивная ручка поворота дула
+      ctx.fillStyle = "#38bdf8";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(barrelEndX, barrelEndY, 6, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
 
       // Дуга угла вылета
       ctx.strokeStyle = "#38bdf8";
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(startX, startY, 40, -this.alphaRad, 0, false);
+      ctx.arc(startX, startY, 44, -this.alphaRad, 0, false);
       ctx.stroke();
       ctx.fillStyle = "#38bdf8";
       ctx.font = "600 11px 'JetBrains Mono', monospace";
-      ctx.fillText(`${this.alpha.toFixed(0)}°`, startX + 46, startY - 8);
+      ctx.fillText(`${this.alpha.toFixed(0)}°`, startX + 50, startY - 8);
 
       // Теоретическая парабола (пунктир)
       ctx.save();
-      ctx.strokeStyle = "rgba(251, 191, 36, 0.4)";
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = "rgba(251, 191, 36, 0.45)";
+      ctx.lineWidth = 1.8;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
       const steps = 100;
@@ -235,14 +250,11 @@ export default {
       const padL = 50, padR = 25, padT = 20, padB = 35;
       const pW = w - padL - padR;
       const pH = h - padT - padB;
-
-      // Максимальная дальность при 45 градусах
       const maxL = (this.v0 * this.v0) / this.g * 1.05;
 
       const degX = (deg) => padL + (deg / 90) * pW;
       const rangeY = (l) => padT + pH - (l / maxL) * pH;
 
-      // Сетка
       ctx.strokeStyle = "rgba(51, 65, 85, 0.5)";
       ctx.lineWidth = 1;
       ctx.font = "500 11px 'JetBrains Mono', monospace";
@@ -269,7 +281,7 @@ export default {
       ctx.textAlign = "right";
       ctx.fillText("Угол α (град.)", padL + pW, padT + pH + 30);
 
-      // Кривая дальности L(α) = (v0^2 * sin(2α)) / g
+      // Кривая дальности
       ctx.strokeStyle = "#38bdf8";
       ctx.lineWidth = 2.8;
       ctx.beginPath();
@@ -283,39 +295,78 @@ export default {
       }
       ctx.stroke();
 
-      // Текущая точка
+      // Маркер текущей точки
       const curX = degX(this.alpha);
       const curL = (this.v0 * this.v0 * Math.sin(2 * this.alphaRad)) / this.g;
       const curY = rangeY(curL);
 
       ctx.fillStyle = "rgba(56, 189, 248, 0.3)";
-      ctx.beginPath();
-      ctx.arc(curX, curY, 10, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(curX, curY, 10, 0, Math.PI * 2); ctx.fill();
 
       ctx.fillStyle = "#ffffff";
       ctx.strokeStyle = "#38bdf8";
       ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(curX, curY, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(curX, curY, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    },
+    onSimMouseDown(e) {
+      this.isDraggingCannon = true;
+      this.updateAngleFromSimEvent(e);
+      window.addEventListener('mousemove', this.onSimMouseMove);
+      window.addEventListener('mouseup', this.onSimMouseUp);
+      window.addEventListener('touchmove', this.onSimMouseMove, { passive: false });
+      window.addEventListener('touchend', this.onSimMouseUp);
+    },
+    onSimMouseMove(e) {
+      if (this.isDraggingCannon) this.updateAngleFromSimEvent(e);
+    },
+    onSimMouseUp() {
+      this.isDraggingCannon = false;
+      window.removeEventListener('mousemove', this.onSimMouseMove);
+      window.removeEventListener('mouseup', this.onSimMouseUp);
+      window.removeEventListener('touchmove', this.onSimMouseMove);
+      window.removeEventListener('touchend', this.onSimMouseUp);
+    },
+    updateAngleFromSimEvent(e) {
+      const canvas = this.$refs.simCanvas;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+
+      const originX = 60;
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      const groundY = h - 50;
+      const startX = originX;
+      const startY = groundY - this.h0 * ((groundY - 35) / Math.max(30, this.maxHeight * 1.3));
+
+      const dx = mx - startX;
+      const dy = startY - my;
+
+      if (dx > 5) {
+        let rad = Math.atan2(dy, dx);
+        let deg = (rad * 180) / Math.PI;
+        deg = Math.max(5, Math.min(85, deg));
+        this.alpha = Math.round(deg);
+        this.reset();
+      }
     },
     onGraphMouseDown(e) {
       this.isDraggingGraph = true;
-      this.updateAngleFromEvent(e);
+      this.updateAngleFromGraphEvent(e);
       window.addEventListener('mousemove', this.onGraphMouseMove);
       window.addEventListener('mouseup', this.onGraphMouseUp);
     },
     onGraphMouseMove(e) {
-      if (this.isDraggingGraph) this.updateAngleFromEvent(e);
+      if (this.isDraggingGraph) this.updateAngleFromGraphEvent(e);
     },
     onGraphMouseUp() {
       this.isDraggingGraph = false;
       window.removeEventListener('mousemove', this.onGraphMouseMove);
       window.removeEventListener('mouseup', this.onGraphMouseUp);
     },
-    updateAngleFromEvent(e) {
+    updateAngleFromGraphEvent(e) {
       const canvas = this.$refs.graphCanvas;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -348,10 +399,8 @@ export default {
   },
   template: `
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <!-- Холсты симуляции и графика (8 колонок) -->
       <div class="lg:col-span-8 flex flex-col gap-6">
         
-        <!-- Холст 1: Баллистика -->
         <div class="glass-panel rounded-2xl p-4 flex flex-col relative overflow-hidden shadow-xl">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3 z-10">
             <div class="flex items-center gap-2">
@@ -376,20 +425,27 @@ export default {
             </div>
           </div>
 
-          <div class="relative w-full h-[360px] sm:h-[400px] bg-slate-950/70 rounded-xl border border-slate-800/80 overflow-hidden">
-            <canvas ref="simCanvas" class="w-full h-full block"></canvas>
+          <div class="relative w-full h-[360px] sm:h-[420px] bg-slate-950/70 rounded-xl border border-slate-800/80 overflow-hidden">
+            <canvas
+              ref="simCanvas"
+              class="w-full h-full block cursor-grab active:cursor-grabbing"
+              @mousedown="onSimMouseDown"
+              @touchstart.passive="onSimMouseDown"
+            ></canvas>
 
-            <!-- Легенда -->
             <div class="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-xl p-2.5 text-xs space-y-1.5 pointer-events-none shadow-lg">
-              <div class="font-semibold text-slate-300 mb-1 border-b border-slate-800 pb-1">Элементы траектории:</div>
+              <div class="font-semibold text-slate-300 mb-1 border-b border-slate-800 pb-1">Элементы:</div>
               <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-rose-500 inline-block"></span><span class="text-slate-300">Снаряд</span></div>
-              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-amber-400 inline-block"></span><span class="text-slate-300 font-mono">v(t)</span> <span class="text-slate-500">— вектор скорости</span></div>
-              <div class="flex items-center gap-2"><span class="w-3 border-b-2 border-dashed border-amber-400/80 inline-block"></span><span class="text-slate-300">Парабола (теор.)</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-1 rounded bg-amber-400 inline-block"></span><span class="text-slate-300 font-mono">v(t)</span> <span class="text-slate-500">— скорость</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 border-b-2 border-dashed border-amber-400/80 inline-block"></span><span class="text-slate-300">Траектория</span></div>
+            </div>
+
+            <div class="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-lg px-2.5 py-1 text-[11px] font-mono text-sky-400 pointer-events-none">
+              💡 Поворачивайте дуло пушки прямо на холсте
             </div>
           </div>
         </div>
 
-        <!-- Холст 2: График L(α) -->
         <div class="glass-panel rounded-2xl p-4 flex flex-col shadow-xl">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
@@ -403,23 +459,20 @@ export default {
               ref="graphCanvas"
               class="w-full h-full block cursor-crosshair"
               @mousedown="onGraphMouseDown"
-              @touchstart.passive="updateAngleFromEvent"
+              @touchstart.passive="updateAngleFromGraphEvent"
             ></canvas>
           </div>
         </div>
 
       </div>
 
-      <!-- Правая колонка параметров и расчетов (4 колонки) -->
       <div class="lg:col-span-4 flex flex-col gap-6">
         
-        <!-- Панель управления -->
         <div class="glass-panel rounded-2xl p-5 shadow-xl space-y-5">
           <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5">
             Параметры баллистики
           </h2>
 
-          <!-- v0 -->
           <div class="space-y-2">
             <div class="flex justify-between items-baseline">
               <label class="text-sm font-medium text-slate-200">Начальная скорость <span class="font-mono text-sky-400">v₀</span></label>
@@ -428,7 +481,6 @@ export default {
             <input type="range" min="5" max="60" step="1" v-model.number="v0" @input="reset" />
           </div>
 
-          <!-- alpha -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
             <div class="flex justify-between items-baseline">
               <label class="text-sm font-medium text-slate-200">Угол вылета <span class="font-mono text-sky-400">α</span></label>
@@ -452,7 +504,6 @@ export default {
             </div>
           </div>
 
-          <!-- h0 -->
           <div class="space-y-2 pt-2 border-t border-slate-800/60">
             <div class="flex justify-between items-baseline">
               <label class="text-sm font-medium text-slate-200">Высота платформы <span class="font-mono text-sky-400">h₀</span></label>
@@ -462,7 +513,6 @@ export default {
           </div>
         </div>
 
-        <!-- Дашборд расчетов -->
         <div class="glass-panel rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between space-y-4">
           <div>
             <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 border-b border-slate-800 pb-2.5 mb-3.5">
@@ -496,7 +546,6 @@ export default {
             </div>
           </div>
 
-          <!-- Справка -->
           <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed space-y-1">
             <span class="font-semibold text-slate-200 block">Физический закон:</span>
             При отсутствии сопротивления воздуха максимальная дальность полета достигается строго при угле <span class="text-sky-400 font-mono">α = 45°</span>, так как <span class="font-mono text-slate-200">sin(2α) = sin(90°) = 1</span>.

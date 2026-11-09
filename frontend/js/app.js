@@ -59,6 +59,7 @@ const app = createApp({
     handleHashChange() {
       const hash = window.location.hash.replace('#', '').replace('/', '');
       this.activeLab = hash || null;
+      window.scrollTo({ top: 0 });
     },
     selectLab(id) {
       this.activeLab = id;

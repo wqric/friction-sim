@@ -1,8 +1,10 @@
-/* Base Theme & Utilities (Matching Friction Sim Reference) */
+/* Base Dark Engineering Theme & Layout Stabilizers */
 body {
     background-color: #090d16;
     color: #e2e8f0;
     overflow-x: hidden;
+    margin: 0;
+    padding: 0;
 }
 
 /* Glassmorphism Panels */
@@ -13,7 +15,15 @@ body {
     border: 1px solid rgba(51, 65, 85, 0.6);
 }
 
-/* Custom Sliders matching friction-sim exactly */
+/* Fix Canvas Rendering Distortion */
+canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    touch-action: none; /* Запрещает скролл страницы при перетаскивании маркеров на мобильных устройствах */
+}
+
+/* Custom Interactive Sliders */
 input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
