@@ -64,90 +64,101 @@ export default {
     }
   },
   template: `
-    <div class="lab-panel p-5 mt-6">
-      <div class="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+    <div class="glass-panel rounded-2xl p-5 shadow-xl mt-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <div>
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">Контрольные задачи с автопроверкой</h3>
-          <p class="text-xs text-slate-400 mt-0.5">Решите задачу с помощью модели или аналитических формул</p>
+          <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-200">
+            Практикум: контрольные задачи с автопроверкой
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Используйте интерактивную модель и теоретические формулы для решения задач
+          </p>
         </div>
-        <span class="text-xs font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-white/5">
+        <span class="text-xs font-mono text-slate-400 bg-slate-900/90 px-3 py-1 rounded-lg border border-slate-800">
           Задач: {{ tasks.length }}
         </span>
       </div>
 
       <div v-if="loading" class="text-xs text-slate-400 py-4 font-mono">
-        Загрузка задач...
+        Загрузка задач модуля...
       </div>
 
-      <div v-else class="space-y-4">
+      <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div
           v-for="(task, index) in tasks"
           :key="task.id"
-          class="p-4 rounded border"
+          class="bg-slate-900/90 p-4 rounded-xl border flex flex-col justify-between transition-all"
           :class="[
             results[task.id]?.is_correct === true
-              ? 'bg-emerald-950/20 border-emerald-500/30'
+              ? 'border-emerald-500/50 bg-emerald-950/20 shadow-lg shadow-emerald-500/10'
               : results[task.id]?.is_correct === false
-                ? 'bg-rose-950/20 border-rose-500/30'
-                : 'bg-slate-900/40 border-white/5'
+                ? 'border-rose-500/50 bg-rose-950/20 shadow-lg shadow-rose-500/10'
+                : 'border-slate-800/90'
           ]"
         >
-          <div class="flex items-start justify-between gap-4">
-            <div class="flex-1">
-              <span class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 mr-2">
-                Задача {{ index + 1 }}
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[11px] font-mono uppercase px-2 py-0.5 rounded bg-slate-800 text-sky-400 font-semibold border border-slate-700/80">
+                Задание {{ index + 1 }}
               </span>
-              <p class="text-xs text-slate-200 mt-2 leading-relaxed">
-                {{ task.question }}
-              </p>
-
-              <!-- Hint toggle -->
-              <div class="mt-2.5">
-                <button
-                  @click="toggleHint(task.id)"
-                  class="text-[11px] text-sky-400 hover:text-sky-300 transition-colors font-mono"
-                >
-                  {{ showHints[task.id] ? 'Скрыть подсказку ↑' : 'Показать подсказку ↓' }}
-                </button>
-                <p v-if="showHints[task.id]" class="text-[11px] text-slate-400 font-mono mt-1 pl-2 border-l border-sky-500/30">
-                  {{ task.hint }}
-                </p>
-              </div>
+              <span v-if="results[task.id]?.is_correct === true" class="text-emerald-400 text-xs font-mono font-bold">
+                ✓ Решено
+              </span>
+              <span v-else-if="results[task.id]?.is_correct === false" class="text-rose-400 text-xs font-mono font-bold">
+                ✕ Ошибка
+              </span>
             </div>
 
-            <!-- Input and submit -->
-            <div class="w-48 shrink-0 flex flex-col items-end gap-2">
-              <div class="flex items-center gap-1.5 w-full">
-                <input
-                  v-model="answers[task.id]"
-                  type="number"
-                  step="any"
-                  placeholder="Ответ"
-                  @keyup.enter="checkAnswer(task)"
-                  class="w-full bg-[#151a27] border border-white/10 rounded px-2.5 py-1 text-xs font-mono text-white placeholder-slate-500 focus:border-sky-500"
-                />
-                <span class="text-xs font-mono text-slate-400 w-8">{{ task.unit }}</span>
-              </div>
+            <p class="text-xs text-slate-200 leading-relaxed mt-2">
+              {{ task.question }}
+            </p>
+
+            <!-- Подсказка -->
+            <div class="mt-2.5">
               <button
-                @click="checkAnswer(task)"
-                class="w-full py-1 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+                @click="toggleHint(task.id)"
+                class="text-[11px] text-sky-400 hover:text-sky-300 transition font-mono flex items-center gap-1"
               >
-                Проверить
+                <span>{{ showHints[task.id] ? 'Скрыть подсказку ↑' : 'Подсказка к формуле ↓' }}</span>
               </button>
+              <div v-if="showHints[task.id]" class="text-[11px] text-slate-300 font-mono mt-1.5 p-2 rounded-lg bg-slate-950/80 border border-slate-800 leading-relaxed">
+                {{ task.hint }}
+              </div>
             </div>
           </div>
 
-          <!-- Result feedback -->
-          <div v-if="results[task.id]" class="mt-3 pt-2.5 border-t border-white/5 text-xs font-mono">
-            <span v-if="results[task.id].is_correct" class="text-emerald-400 flex items-center gap-1.5">
-              <span>✓ Верно!</span>
-              <span class="text-slate-300 font-sans text-[11px]">{{ results[task.id].explanation }}</span>
-            </span>
-            <span v-else class="text-rose-400 flex items-center gap-1.5">
-              <span>✕ Неверно.</span>
-              <span class="text-slate-400 font-sans text-[11px]">{{ results[task.id].explanation }}</span>
-            </span>
+          <!-- Ввод и проверка -->
+          <div class="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
+            <div class="flex items-center gap-2">
+              <input
+                v-model="answers[task.id]"
+                type="number"
+                step="any"
+                placeholder="Ваш ответ"
+                @keyup.enter="checkAnswer(task)"
+                class="w-full bg-slate-950/80 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-mono text-white placeholder-slate-500 focus:border-sky-500 transition"
+              />
+              <span class="text-xs font-mono text-slate-400 w-10 shrink-0">{{ task.unit }}</span>
+            </div>
+
+            <button
+              @click="checkAnswer(task)"
+              class="w-full py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+            >
+              Проверить ответ
+            </button>
+
+            <!-- Результат проверки -->
+            <div v-if="results[task.id]" class="text-xs font-mono pt-1">
+              <div v-if="results[task.id].is_correct" class="text-emerald-300 text-[11px] leading-relaxed">
+                {{ results[task.id].explanation }}
+              </div>
+              <div v-else class="text-rose-300 text-[11px] leading-relaxed">
+                {{ results[task.id].explanation }}
+              </div>
+            </div>
           </div>
+
         </div>
       </div>
     </div>

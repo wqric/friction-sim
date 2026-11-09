@@ -1,86 +1,51 @@
-/* Unslop Design System: Dark Engineering Theme */
-:root {
-  --bg-primary: #0a0d14;
-  --bg-panel: #111520;
-  --bg-card: #151a27;
-  --bg-input: #1b2132;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent-cyan: #38bdf8;
-  --accent-emerald: #34d399;
-  --accent-amber: #fbbf24;
-  --accent-rose: #f43f5e;
-}
-
+/* Base Theme & Utilities (Matching Friction Sim Reference) */
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  letter-spacing: -0.011em;
+    background-color: #090d16;
+    color: #e2e8f0;
+    overflow-x: hidden;
 }
 
-/* Hairline border utilities */
-.hairline {
-  border: 1px solid var(--border-subtle);
+/* Glassmorphism Panels */
+.glass-panel {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(51, 65, 85, 0.6);
 }
 
-.hairline-b {
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.hairline-t {
-  border-top: 1px solid var(--border-subtle);
-}
-
-/* Engineering panel */
-.lab-panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-}
-
-.lab-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  transition: border-color 0.15s ease;
-}
-
-.lab-card:hover {
-  border-color: var(--border-strong);
-}
-
-/* Range input styled cleanly */
+/* Custom Sliders matching friction-sim exactly */
 input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+    width: 100%;
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
-  background: #1e2638;
-  height: 4px;
-  border-radius: 2px;
+    background: #1e293b;
+    height: 8px;
+    border-radius: 4px;
+    border: 1px solid #334155;
 }
 
 input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  margin-top: -6px;
-  background-color: var(--accent-cyan);
-  height: 16px;
-  width: 16px;
-  border-radius: 50%;
-  border: 2px solid var(--bg-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -5px;
+    background-color: #38bdf8;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    transition: transform 0.15s ease, background-color 0.15s ease;
 }
 
-/* Subtle focus state */
-input:focus, button:focus {
-  outline: none;
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    background-color: #7dd3fc;
+}
+
+input[type="range"]:focus {
+    outline: none;
 }
