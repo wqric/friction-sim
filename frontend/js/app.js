@@ -88,6 +88,7 @@ const app = createApp({
       />
 
       <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-6">
+        <p v-if="error" role="alert" class="load-error">{{ error }}</p>
         <!-- Главный каталог лабораторий с разделением по темам -->
         <LabCatalog
           v-if="!activeLab"
@@ -102,7 +103,7 @@ const app = createApp({
           <!-- Шапка текущей симуляции -->
           <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+              <div class="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path>
                 </svg>
@@ -120,7 +121,6 @@ const app = createApp({
 
             <!-- Индикатор состояния -->
             <div class="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium border bg-sky-950/60 border-sky-500/40 text-sky-300">
-              <span class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse"></span>
               <span class="font-mono">{{ currentTopic?.formula }}</span>
             </div>
           </div>

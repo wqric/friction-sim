@@ -27,17 +27,20 @@ export default {
   methods: {
     async fetchTasks(id) {
       this.loading = true;
+      this.error = null;
+      this.tasks = [];
       this.results = {};
       this.answers = {};
       this.showHints = {};
       try {
         const res = await fetch(`/api/tasks/${id}`);
         if (!res.ok) throw new Error('Ошибка загрузки задач');
-        this.tasks = await res.json();
+        const tasks = await res.json();
+        if (id === this.topicId) this.tasks = tasks;
       } catch (err) {
-        this.error = err.message;
+        if (id === this.topicId) this.error = err.message;
       } finally {
-        this.loading = false;
+        if (id === this.topicId) this.loading = false;
       }
     },
     toggleHint(taskId) {
@@ -56,10 +59,11 @@ export default {
             user_answer: val
           })
         });
+        if (!res.ok) throw new Error('Не удалось проверить ответ');
         const data = await res.json();
         this.results[task.id] = data;
       } catch (err) {
-        console.error(err);
+        this.error = err.message;
       }
     }
   },
@@ -79,6 +83,7 @@ export default {
         </span>
       </div>
 
+      <p v-if="error" role="alert" class="load-error">{{ error }}</p>
       <div v-if="loading" class="text-xs text-slate-400 py-4 font-mono">
         Загрузка задач модуля...
       </div>
