@@ -22,7 +22,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no root@31.77.199.133 'bash -s' << 'EOF'
             set -e
-            APP_DIR="/opt/friction-sim"
+            APP_DIR="/opt/physlab-deploy"
 
             # Create folder if needed
             mkdir -p $APP_DIR
@@ -54,8 +54,8 @@ jobs:
           [Service]
           Type=simple
           User=root
-          WorkingDirectory=/opt/friction-sim
-          ExecStart=/opt/friction-sim/venv/bin/uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+          WorkingDirectory=/opt/physlab-deploy
+          ExecStart=/opt/physlab-deploy/venv/bin/uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
           Restart=always
           RestartSec=5
 
