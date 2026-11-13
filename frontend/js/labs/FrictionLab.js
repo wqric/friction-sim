@@ -175,11 +175,14 @@ export default {
       ctx.restore();
 
       // Геометрия наклонной плоскости
-      const pivotX = Math.max(160, w * 0.24);
-      const pivotY = h - 55;
-      const planeLen = Math.min(w - pivotX - 50, h - 85, 380);
-
       const alpha = phys.alphaRad;
+      const pivotX = Math.max(90, w * 0.16);
+      const pivotY = h - 64;
+      const planeLen = Math.min(
+        (w - pivotX - 56) / Math.max(Math.cos(alpha), 0.18),
+        (pivotY - 88) / Math.max(Math.sin(alpha), 0.18),
+        640
+      );
       const topX = pivotX + planeLen * Math.cos(alpha);
       const topY = pivotY - planeLen * Math.sin(alpha);
 
@@ -265,8 +268,8 @@ export default {
       ctx.restore();
 
       // Брусок
-      const blockW = 64;
-      const blockH = 40;
+      const blockW = Math.max(72, Math.min(100, planeLen * 0.16));
+      const blockH = Math.max(48, Math.min(64, planeLen * 0.1));
       const startDist = planeLen * 0.7;
       const pxOffset = this.blockOffset * 55;
       const minDist = blockW * 0.7;
@@ -324,7 +327,7 @@ export default {
       ctx.restore();
 
       // Векторы сил и движения
-      const vectorScale = 105 / Math.max(phys.mg, 1);
+      const vectorScale = 140 / Math.max(phys.mg, 1);
       const downSlopeX = -Math.cos(alpha);
       const downSlopeY = Math.sin(alpha);
       const upSlopeX = Math.cos(alpha);
@@ -572,8 +575,8 @@ export default {
 
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
-      const pivotX = Math.max(160, w * 0.24);
-      const pivotY = h - 55;
+      const pivotX = Math.max(90, w * 0.16);
+      const pivotY = h - 64;
 
       const dx = mx - pivotX;
       const dy = pivotY - my;
@@ -603,8 +606,8 @@ export default {
 
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
-      const pivotX = Math.max(160, w * 0.24);
-      const pivotY = h - 55;
+      const pivotX = Math.max(90, w * 0.16);
+      const pivotY = h - 64;
 
       const dx = mx - pivotX;
       const dy = pivotY - my;
@@ -667,7 +670,7 @@ export default {
     }
   },
   template: `
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div class="lab-view grid grid-cols-1 lg:grid-cols-12 gap-6">
       <!-- Холст симуляции и Холст графика (8 колонок) -->
       <div class="lg:col-span-8 flex flex-col gap-6">
         

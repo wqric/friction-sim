@@ -99,9 +99,9 @@ const app = createApp({
         />
 
         <!-- Выбранная лаборатория -->
-        <div v-else class="space-y-6">
+        <div v-else class="lab-page space-y-6">
           <!-- Шапка текущей симуляции -->
-          <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+          <div class="lab-heading flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
